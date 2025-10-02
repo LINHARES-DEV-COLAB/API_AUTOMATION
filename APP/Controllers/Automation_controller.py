@@ -3,7 +3,6 @@ from flask import current_app, request
 from flask_restx import Namespace, Resource, fields
 from APP.extensions import db
 from APP.Models.models import Sector, Automation, Run
-from flask import redirect
 
 auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
 
@@ -139,6 +138,7 @@ class RunStatus(Resource):
             "output": r.output,
         }, 200
 
-@auto_ns.get("/")
-def index():
-    return redirect("/docs", code=302)
+@auto_ns.route("/")
+class AutomarionRoot(Resource):
+    def get(self):
+        return{"ok":True},200
