@@ -2,7 +2,8 @@
 from flask import current_app, request
 from flask_restx import Namespace, Resource, fields
 from APP.extensions import db
-from APP.Models.models import Sector, Automation, Run  # modelos reais
+from APP.Models.models import Sector, Automation, Run
+from flask import redirect
 
 auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
 
@@ -137,3 +138,7 @@ class RunStatus(Resource):
             "finishedAt": r.finished_at.isoformat() if r.finished_at else None,
             "output": r.output,
         }, 200
+
+@auto_ns.get("/")
+def index():
+    return redirect("/docs", code=302)
