@@ -1,12 +1,8 @@
-# APP/Controllers/auth_controller.py
-from flask import Blueprint, request
-from flask_restx import Api, Namespace, Resource, fields
+from flask import request
+from flask_restx import Namespace, Resource, fields
 from APP.Config.auth_ldap import autenticar_upn, buscar_atributos
 
-auth_bp = Blueprint("auth", __name__)
-api = Api(auth_bp)
 auth_ns = Namespace("auth", description="Autenticação LDAP")
-api.add_namespace(auth_ns)
 
 login_model = auth_ns.model("Login", {
     "username": fields.String(required=True, description="Usuário"),
@@ -14,7 +10,7 @@ login_model = auth_ns.model("Login", {
 })
 
 @auth_ns.route("/health")
-class Health(Resource):
+class AuthHealth(Resource):
     def get(self):
         return {"status": "ok"}, 200
 
@@ -26,9 +22,15 @@ class Login(Resource):
         usuario = data.get("username") or data.get("usuario")
         senha = data.get("password") or data.get("senha")
 
-        ok, err = autenticar_upn(usuario, senha)
+        # Nunca logar senha. Trate exceções.
+        try:
+            ok, err = autenticar_upn(usuario, senha)
+        except Exception as e:
+            auth_ns.logger.exception("Falha no backend de auth")
+            return {"ok": False, "error": "internal_error"}, 500
+
         if not ok:
-            return {"ok": False, "error": str(err)}, 401
+            return {"ok": False, "error": str(err) if err else "unauthorized"}, 401
 
         ok_attr, attrs, _ = buscar_atributos(usuario, senha)
         claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail")} if ok_attr and attrs else {}

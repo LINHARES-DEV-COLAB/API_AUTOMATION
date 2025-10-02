@@ -1,6 +1,5 @@
-# APP/Models/models.py
 from datetime import datetime
-from APP.extensions import db  # <- pega o db da extensão (único)
+from APP.extensions import db 
 
 class Sector(db.Model):
     __tablename__ = "sectors"

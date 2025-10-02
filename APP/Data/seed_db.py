@@ -2,9 +2,13 @@
 import os
 from APP.extensions import db
 from APP.Models.models import Sector, Automation  # ajuste se tiver outras tabelas
-from main import app  # reutiliza o app já configurado (mesmo instance_path)
+from main import app
+from pathlib import Path
+import sys  
 
-def seed():
+def run_seed():
+    with app.app_context():
+        db.create_all()
     # idempotente: só cria se não existir
     if Sector.query.count() == 0:
         s1 = Sector(name="Financeiro")
@@ -40,5 +44,5 @@ if __name__ == "__main__":
         db.create_all()
         print("DB URL:", app.config["SQLALCHEMY_DATABASE_URI"])
         print("instance_path:", app.instance_path)
-        seed()
+        run_seed()
         print(f"✅ Seed concluído em: {os.path.join(app.instance_path, 'catalog.db')}")
