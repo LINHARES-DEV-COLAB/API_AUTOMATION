@@ -1,0 +1,21 @@
+### EstudoAPI - Testes de Login LDAP
+# Abra este arquivo no VS Code com a extensão "REST Client" (humao.rest-client).
+
+@base_url = http://localhost:5000
+@username = 
+@password = 
+
+### Healthcheck
+GET {base_url}/health
+
+### Login (POST)
+POST {base_url}/login
+Content-Type: application/json
+
+{
+  "username": "{username}",
+  "password": "{password}"
+}
+
+### Dados (GET sem JWT)
+GET {base_url}/dados?username={username}&password={password}
