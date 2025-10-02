@@ -18,8 +18,10 @@ app = Flask(__name__, instance_relative_config=True, instance_path=str(INSTANCE_
 
 # Config DB
 db_path = INSTANCE_DIR / "catalog.db"
+
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ECHO"] = True  # TEMP: loga as queries
 
 # Inicializa extensões ANTES de usar
 db.init_app(app)
