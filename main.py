@@ -4,7 +4,7 @@ from pathlib import Path
 from flask import Flask, redirect
 from flask_cors import CORS
 from flask_restx import Api
-
+from APP.Controllers.controller_teste import selenium_ns
 from APP.extensions import db
 from APP.Controllers.auth_controller import auth_ns
 from APP.Controllers.Automation_controller import auto_ns
@@ -30,7 +30,7 @@ db.init_app(app)
 api = Api(app, doc="/docs", title="Automations API", version="1.0")
 api.add_namespace(auth_ns, path="/auth")
 api.add_namespace(auto_ns, path="/automation")
-
+api.add_namespace(selenium_ns, path="/teste")
 # CORS (ajuste origens)
 CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5500","http://localhost:5500"]}},
      supports_credentials=True)

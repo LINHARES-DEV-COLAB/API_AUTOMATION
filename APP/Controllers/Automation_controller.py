@@ -133,9 +133,4 @@ class AutomationRoot(Resource):
     def get(self):
         return {"ok": True}, 200
     
-auto_ns.route("/testeWebdriver")
-class TesteWebdriver(Resource):
-    def get(self):
-        automation = SeleniumTest()
-        automation.driver.get("https://www.google.com")
-        return {"ok": True}, 200
+
