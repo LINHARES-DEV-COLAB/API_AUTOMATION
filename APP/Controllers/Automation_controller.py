@@ -2,6 +2,7 @@ from flask import request, current_app
 from flask_restx import Namespace, Resource, fields
 from APP.extensions import db
 from APP.Models.models import Sector, Automation, Run
+from APP.Services.teste_selenium import SeleniumTest
 
 auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
 
@@ -130,4 +131,11 @@ class RunStatus(Resource):
 @auto_ns.route("/")
 class AutomationRoot(Resource):
     def get(self):
+        return {"ok": True}, 200
+    
+auto_ns.route("/testeWebdriver")
+class TesteWebdriver(Resource):
+    def get(self):
+        automation = SeleniumTest()
+        automation.driver.get("https://www.google.com")
         return {"ok": True}, 200
