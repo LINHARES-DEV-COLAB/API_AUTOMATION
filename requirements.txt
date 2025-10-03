@@ -13,6 +13,8 @@ python-dotenv==1.1.1
 oracledb==3.3.0
 openpyxl==3.1.5
 pandas==2.3.2
+ldap3==2.9.1
 
 selenium==4.35.0
 webdriver-manager==4.0.2
+
