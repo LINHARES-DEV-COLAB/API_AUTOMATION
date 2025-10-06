@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 ENV PYTHONUNBUFFERED=1
+ENV XDG_RUNTIME_DIR=/tmp
+ENV CHROME_TMPDIR=/tmp
 
 # 3) App
 WORKDIR /app
@@ -20,6 +22,7 @@ COPY . /app
 EXPOSE 10000
 # Gunicorn lê PORT do ambiente da Render. Bind em 0.0.0.0
 CMD exec gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 1 --timeout 180 "main:create_app()"
+
 
  
 
