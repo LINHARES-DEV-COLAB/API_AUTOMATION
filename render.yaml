@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: api-selenium-render
+    env: docker
+    autoDeploy: true
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: CHROME_BIN
+        value: /usr/bin/chromium
+      - key: CHROMEDRIVER_PATH
+        value: /usr/bin/chromedriver
