@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from APP.extensions import db
-from APP.Models.models import Run, Automation
+from APP.extensions_service import db
+from APP.Models.base_models import Run, Automation
 from APP.Services.catalog import list_sectors, list_automations, get_automation
 
 auto_bp = Blueprint("auto_bp", __name__)

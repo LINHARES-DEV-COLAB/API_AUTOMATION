@@ -1,5 +1,5 @@
 # APP/Services/catalog.py
-from APP.Models.models import Automation, Sector, automation_to_dict, sector_to_dict
+from APP.Models.base_models import Automation, Sector, automation_to_dict, sector_to_dict
 
 def list_sectors():
     return [sector_to_dict(s) for s in Sector.query.order_by(Sector.name).all()]

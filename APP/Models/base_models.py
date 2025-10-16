@@ -1,5 +1,5 @@
 from datetime import datetime
-from APP.extensions import db 
+from APP.extensions_service import db 
 
 class Sector(db.Model):
     __tablename__ = "sectors"

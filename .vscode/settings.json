@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
         "./APP/Controllers"
-    ]
+    ],
+    "python.analysis.autoImportCompletions": true
 }

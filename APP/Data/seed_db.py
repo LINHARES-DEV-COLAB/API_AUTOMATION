@@ -1,7 +1,7 @@
 # seed_db.py
 import os
-from APP.extensions import db
-from APP.Models.models import Sector, Automation  # ajuste se tiver outras tabelas
+from APP.extensions_service import db
+from APP.Models.base_models import Sector, Automation  # ajuste se tiver outras tabelas
 from main import app
 from pathlib import Path
 import sys  

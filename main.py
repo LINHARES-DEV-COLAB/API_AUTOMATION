@@ -4,9 +4,9 @@ from pathlib import Path
 from flask import Flask, redirect, jsonify, request 
 from flask_cors import CORS
 from flask_restx import Api
-from APP.extensions import db
+from APP.extensions_service import db
 from APP.Controllers.auth_controller import auth_ns
-from APP.Controllers.Automation_controller import auto_ns
+from APP.Controllers.automation_controller import auto_ns
 from APP.Controllers.controller_teste import selenium_ns
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -44,7 +44,7 @@ def create_app():
         return redirect("/docs", code=302)
 
     with app.app_context():
-        from APP.Models.models import Sector, Automation, Run  # noqa: F401
+        from APP.Models.base_models import Sector, Automation, Run  # noqa: F401
 
         db.create_all()
 
@@ -61,4 +61,4 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     port = int(os.getenv("PORT", "10000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(port=8980, host="172.17.67.19")
