@@ -62,3 +62,5 @@ if __name__ == "__main__":
     app = create_app()
     port = int(os.getenv("PORT", "10000"))
     app.run(port=8980, host="172.17.67.19")
+
+
