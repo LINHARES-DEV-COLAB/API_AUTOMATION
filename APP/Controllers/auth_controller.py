@@ -1,6 +1,9 @@
+from os import access
 from flask import request
 from flask_restx import Namespace, Resource, fields
 from APP.Config.auth_ldap import autenticar_upn, buscar_atributos
+from flask_jwt_extended import create_access_token
+
 
 auth_ns = Namespace("auth", description="Autenticação LDAP")
 
@@ -9,14 +12,10 @@ login_model = auth_ns.model("Login", {
     "password": fields.String(required=True, description="Senha"),
 })
 
-@auth_ns.route("/health")
-class AuthHealth(Resource):
-    def get(self):
-        return {"status": "ok"}, 200
-
 @auth_ns.route("/login")
 class Login(Resource):
     @auth_ns.expect(login_model, validate=True)
+    @auth_ns.doc(security=[])
     def post(self):
         data = request.get_json(silent=True) or {}
         usuario = data.get("username") or data.get("usuario")
@@ -35,9 +34,13 @@ class Login(Resource):
         ok_attr, attrs, _ = buscar_atributos(usuario, senha)
         claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail")} if ok_attr and attrs else {}
 
+        identity = {"user": usuario}
+
+        access_token = create_access_token(identity=identity, additional_claims=claims)
+
         return {
             "ok": True,
             "message": "Autenticado com sucesso",
-            "user": usuario,
+            "user": access_token,
             "claims": claims
         }, 200

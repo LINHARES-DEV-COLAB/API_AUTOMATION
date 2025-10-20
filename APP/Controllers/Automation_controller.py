@@ -3,7 +3,12 @@ from flask_restx import Namespace, Resource, fields
 from APP.extensions_service import db
 from APP.Models.base_models import Sector, Automation, Run
 from APP.Services.teste_selenium import SeleniumTest
+from flask_jwt_extended import jwt_required
 
+class ProtectedResource(Resource):
+    """Base que protege todos os métodos da resource com JWT."""
+    method_decorators = [jwt_required()]
+    
 auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
 
 # ===== Swagger models =====
@@ -51,7 +56,7 @@ class Sectors(Resource):
 
 # ===== /automations =====
 @auto_ns.route("/automations")
-class Automations(Resource):
+class Automations(ProtectedResource):
     @auto_ns.marshal_list_with(automation_model, code=200)
     def get(self):
         try:
