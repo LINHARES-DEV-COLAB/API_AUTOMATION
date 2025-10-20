@@ -1,5 +1,10 @@
-class User:
-    
-    def __init__(self, user_id: int, name: str):
-        self.user_id = user_id
-        self.name = name
+from sqlalchemy import false
+from .base_model import CoreModel
+from typing import Optional
+
+class User(CoreModel):
+    email: str  
+    username: str
+    hashed_password: str
+    is_superuser: bool  = false
+    department_id: Optional[str] = None   
