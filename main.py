@@ -8,14 +8,15 @@ from flask_restx import Api
 from flask_jwt_extended import JWTManager
 from APP.extensions_service import db
 from APP.Controllers.auth_controller import auth_ns
-from APP.Controllers.automation_controller import auto_ns
-from APP.Controllers.controller_teste import selenium_ns
+from APP.Controllers.solicitacao_carga_route import solicitacao_carga_ns
+
 
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = Path(os.getenv("INSTANCE_DIR", BASE_DIR / "instance")).resolve()
 INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = INSTANCE_DIR / "catalog.db"
+
 
 
 def create_app():
@@ -43,8 +44,7 @@ def create_app():
     api = Api(app, doc="/docs", title="Automations API", version="1.0", authorizations=authorizations, security="Bearer Auth")
 
     api.add_namespace(auth_ns, path="/auth")
-    api.add_namespace(auto_ns, path="/automation")
-    api.add_namespace(selenium_ns, path="/teste")
+    api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
 
     CORS(
         app,
