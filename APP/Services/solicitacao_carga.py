@@ -6,9 +6,10 @@ from APP.DTO.solicitacao_carga_dto import User
 from APP.Config.ihs_config import _ensure_driver
 from APP.Core.solicitacao_carga_core import Path
 from openpyxl import load_workbook, Workbook
+from tkinter import messagebox
+from typing import Dict, List
 from datetime import datetime
 from time import sleep, time
-from tkinter import messagebox
 import tkinter as tk
 import pandas as pd
 import threading
@@ -258,25 +259,39 @@ def get_all_users(lojas):
 def _norm_loja(nome: str) -> str:
     return str(nome).strip().upper().replace(" ", "_")
 
-def _normaliza_lista(lojas_list):
-    # remove vazios, normaliza e remove duplicatas preservando a ordem
-    norm = [_norm_loja(str(x)) for x in lojas_list if str(x).strip()]
-    dedup = list(dict.fromkeys(norm))  # preserva ordem
-    return dedup
+def _normaliza_lista_lojas_param(param: str) -> List[str]:
+    """
+    Converte o parâmetro 'lojas' em uma lista de keys normalizadas.
+    Ex.: 'Ares Motos, Cajazeiras' -> ['ares-motos', 'cajazeiras'] (exemplo)
+    """
+    partes = [p.strip() for p in param.split(",") if p.strip()]
+    return [_norm_loja(p) for p in partes]
 
-def tela(lojas):
+def tela(lojas: str) -> Dict[str, List[str]]:
     """
-    lojas: "all" OU list[str] (nomes exibidos ou já normalizados).
-    Retorna: {"LOJAS": [...], "CODIGOS": [...], "USUARIOS": [...], "SENHAS": [...]}
+    Lê o Excel e retorna o dicionário de listas filtrado:
+    {'LOJAS': [...], 'CODIGOS': [...], 'USUARIOS': [...], 'SENHAS': [...]}
+
+    Parâmetros:
+        lojas (str): 'all' ou lista separada por vírgula (ordem preservada).
+                     Aceita tanto nome exibido quanto key normalizada.
+
+    Retorno:
+        dict[str, list[str]]
     """
-    df = pd.read_excel(ARQ, dtype=str)
+    # 1) Lê o Excel
+    df = pd.read_excel(ARQ, dtype=str)  # dtype=str evita NaN -> float
     esperadas = {"LOJAS", "CODIGOS", "USUARIOS", "SENHAS"}
     if not esperadas.issubset(set(df.columns)):
         raise ValueError(f"Colunas esperadas: {esperadas} | Encontradas: {set(df.columns)}")
 
+    # 2) Cria a coluna de chave normalizada
     df["_LOJA_KEY"] = df["LOJAS"].map(_norm_loja)
 
-    if lojas == "all":
+    # 3) Determina quais keys usar e a ordem
+    if lojas.lower() == "all":
+        # usa TODAS as lojas na ordem do arquivo (removendo duplicatas por primeira ocorrência)
+        # se houver duplicatas, consideramos a primeira ocorrência
         ordem_keys = []
         vistos = set()
         for k in df["_LOJA_KEY"]:
@@ -284,30 +299,34 @@ def tela(lojas):
                 ordem_keys.append(k)
                 vistos.add(k)
     else:
-        ordem_keys = _normaliza_lista(lojas)
+        # usa SOMENTE as lojas passadas na URL, preservando a ordem fornecida
+        ordem_keys = _normaliza_lista_lojas_param(lojas)
 
     if not ordem_keys:
-        raise ValueError("Nenhuma loja informada/derivada do payload.")
+        raise ValueError("Nenhuma loja informada/derivada do parâmetro.")
 
+    # 4) Monta listas NA ORDEM selecionada, pegando a primeira linha quando houver duplicidade
     df_idx = df.set_index("_LOJA_KEY")
     lojas_out, codigos, usuarios, senhas = [], [], [], []
-    inexistentes = []
 
+    lojas_inexistentes = []
     for key in ordem_keys:
         if key not in df_idx.index:
-            inexistentes.append(key)
+            lojas_inexistentes.append(key)
             continue
+
         row = df_idx.loc[key]
         if isinstance(row, pd.DataFrame):
-            row = row.iloc[0]
+            row = row.iloc[0]  # pega a primeira ocorrência
 
-        lojas_out.append(_norm_loja(row["LOJAS"]))
+        lojas_out.append(_norm_loja(row["LOJAS"]))        # mantém padronização usada no resto do fluxo
         codigos.append(str(row["CODIGOS"]).strip())
         usuarios.append(str(row["USUARIOS"]).strip())
         senhas.append(str(row["SENHAS"]).strip())
 
-    if inexistentes:
-        raise ValueError(f"Lojas não encontradas no Excel: {inexistentes}")
+    if lojas_inexistentes:
+        # falha explícita para evitar executar sem todas as lojas pedidas
+        raise ValueError(f"Lojas não encontradas no Excel (use nomes válidos ou equivalentes normalizados): {lojas_inexistentes}")
 
     return {"LOJAS": lojas_out, "CODIGOS": codigos, "USUARIOS": usuarios, "SENHAS": senhas}
 
