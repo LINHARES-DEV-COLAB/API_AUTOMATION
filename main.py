@@ -60,17 +60,17 @@ def create_app():
     def index_redirect():
         return redirect("/docs", code=302)
 
-    with app.app_context():
-        from APP.Models.base_models import Sector, Automation, Run  # noqa: F401
+    # with app.app_context():
+    #     from APP.Models.base_models import Sector, Automation, Run  # noqa: F401
 
-        db.create_all()
+    #     db.create_all()
 
-        if os.getenv("SEED_ON_START") == "1":
-            try:
-                from APP.Data.seed_db import run_seed
-                run_seed()
-            except Exception as e:
-                app.logger.exception("Seed falhou: %s", e)
+    #     if os.getenv("SEED_ON_START") == "1":
+    #         try:
+    #             from APP.Data.seed_db import run_seed
+    #             run_seed()
+    #         except Exception as e:
+    #             app.logger.exception("Seed falhou: %s", e)
 
     return app
 
@@ -78,6 +78,7 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     port = int(os.getenv("PORT", "10000"))
-    app.run(port=8980, host="172.17.67.19")
+    # app.run(port=8980, host="172.17.67.19")
+    app.run(port=5000, host="0.0.0.0")
 
 
