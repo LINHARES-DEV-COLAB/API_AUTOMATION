@@ -2,23 +2,17 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-from APP.DTO.solicitacao_carga_dto import User
+from APP.DTO.ihs_dto import User
 from APP.Config.ihs_config import _ensure_driver
 from APP.Core.solicitacao_carga_core import Path
 from openpyxl import load_workbook, Workbook
-from tkinter import messagebox
 from typing import Dict, List
 from datetime import datetime
 from time import sleep, time
-import tkinter as tk
 import pandas as pd
-import threading
 import logging
 import random
 import os
-
-_driver = None
-_lock = threading.Lock()
 
 
 ARQ = r'\\172.17.67.14\findev$\Automação - CNH\SENHAS IHS.xlsx'
@@ -257,7 +251,7 @@ def get_all_users(lojas):
     return usuarios
 
 def _norm_loja(nome: str) -> str:
-    return str(nome).strip().upper().replace(" ", "_")
+    return str(nome).strip().upper().replace(" ", "-")
 
 def _normaliza_lista_lojas_param(param: str) -> List[str]:
     """
@@ -353,7 +347,7 @@ def solicitacao_carga_main(lojas):
 
     path = Path()
 
-    driver, wdw, PASTA_DOWNLOADS = _ensure_driver(_driver, _lock)
+    driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
 
     driver.get(path.Url.url)
 

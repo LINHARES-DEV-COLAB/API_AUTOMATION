@@ -9,8 +9,9 @@ from flask_jwt_extended import JWTManager
 from APP.Services import baixas_pan_service
 from APP.extensions_service import db
 from APP.Controllers.auth_controller import auth_ns
-from APP.Controllers.solicitacao_carga_route import solicitacao_carga_ns
+from APP.Controllers.solicitacao_carga_controller import solicitacao_carga_ns
 from APP.Controllers.baixas_pan_controller import baixas_pan_ns
+from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_honda_ns
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = Path(os.getenv("INSTANCE_DIR", BASE_DIR / "instance")).resolve()
@@ -73,6 +74,8 @@ def create_app(test_config=None):
 def _initialize_extensions(app):
     """Inicializar todas as extensões Flask"""
     # JWT
+    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY" , "") 
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=int(os.getenv("JWT_EXPIRE_MIN", "30")))
     jwt = JWTManager(app)
     
     # Database
@@ -105,10 +108,19 @@ def _register_namespaces(api):
     api.add_namespace(auth_ns, path="/auth")
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
     api.add_namespace(baixas_pan_ns, path="/baixas-pan")
-    
-    # Futuros namespaces podem ser adicionados aqui
-    # from APP.Controllers.novo_controller import novo_ns
-    # api.add_namespace(novo_ns, path="/novo")
+    api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
+
+    CORS(
+        app,
+        resources={
+            r"/*": {
+                "origins": ["http://127.0.0.1:5500", "http://localhost:5500"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+                "supports_credentials": True
+            }
+        }
+    )
 
 def _configure_cors(app):
     """Configurar CORS"""
