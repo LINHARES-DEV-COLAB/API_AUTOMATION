@@ -1,159 +1,144 @@
-from flask import request, current_app
-from flask_restx import Namespace, Resource, fields
-from flask_jwt_extended import jwt_required
-import tempfile
+from flask import request, send_file
 import os
+import uuid
+from werkzeug.utils import secure_filename
+from flask_restx import Namespace, Resource, fields
+from APP.Services.baixas_pan_service import pan_service
+from ..Models.schemas import ProcessamentoRequest, ProcessamentoResponse, StatusProcessamento
+from ..Config.settings import config
 
-from APP.Services.baixas_pan_service import BaixasPanService
-
-# Namespace
+# ✅ Mudar de Blueprint para Namespace
 baixas_pan_ns = Namespace('baixas-pan', description='Operações de baixas bancárias PAN')
 
-# Models para documentação Swagger
-processar_extrato_input = baixas_pan_ns.model('ProcessarExtratoInput', {
-    'file': fields.Raw(required=True, description='Arquivo Excel do extrato bancário')
+# Model para documentação Swagger
+upload_model = baixas_pan_ns.model('UploadPAN', {
+    'file': fields.Raw(description='Arquivo Excel', required=True),
+    'banco': fields.String(default='PAN', description='Banco'),
+    'datas_para_buscar': fields.String(description='Datas separadas por vírgula'),
+    'tolerancia': fields.Float(default=0.10, description='Tolerância')
 })
 
-busca_direta_input = baixas_pan_ns.model('BuscaDiretaInput', {
-    'valores': fields.List(fields.Float, required=True, description='Lista de valores para buscar'),
-    'datas': fields.List(fields.String, description='Datas específicas para buscar (opcional)')
+processamento_model = baixas_pan_ns.model('ProcessamentoPAN', {
+    'arquivo_path': fields.String(required=True, description='Caminho do arquivo'),
+    'banco': fields.String(default='PAN', description='Banco'),
+    'datas_para_buscar': fields.List(fields.String, description='Datas para busca'),
+    'tolerancia': fields.Float(default=0.10, description='Tolerância')
 })
 
-resultado_item = baixas_pan_ns.model('ResultadoItem', {
-    '__Arquivo__': fields.String,
-    '__Planilha__': fields.String,
-    '__Coluna_Encontrado__': fields.String,
-    '__VALOR_NUM__': fields.Float,
-    '__VALOR_ORIGINAL__': fields.Float,
-    '__TITULO__': fields.String,
-    '__DUPLICATA__': fields.String,
-    '__VALOR_TITULO__': fields.Float,
-    '__DATA_ORIGEM__': fields.String
-})
+ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
 
-estatisticas_model = baixas_pan_ns.model('Estatisticas', {
-    'valores_extraidos': fields.Integer,
-    'valores_encontrados': fields.Integer,
-    'valores_nao_encontrados': fields.Integer,
-    'total_registros': fields.Integer,
-    'datas_buscadas': fields.List(fields.String),
-    'datas_com_resultados': fields.List(fields.String)
-})
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-resposta_sucesso = baixas_pan_ns.model('RespostaSucesso', {
-    'sucesso': fields.Boolean,
-    'estatisticas': fields.Nested(estatisticas_model),
-    'valores_extraidos': fields.List(fields.Float),
-    'valores_nao_encontrados': fields.List(fields.Float),
-    'resultados': fields.List(fields.Nested(resultado_item)),
-    'timestamp': fields.String
-})
-
-resposta_erro = baixas_pan_ns.model('RespostaErro', {
-    'sucesso': fields.Boolean,
-    'erro': fields.String
-})
-
-class ProtectedResource(Resource):
-    """Base que protege todos os métodos da resource com JWT."""
-    method_decorators = [jwt_required()]
-
-@baixas_pan_ns.route('/processar-extrato')
-class ProcessarExtrato(ProtectedResource):
-    @baixas_pan_ns.doc(description='Processa arquivo de extrato e busca correspondências nos arquivos PAN')
-    @baixas_pan_ns.expect(processar_extrato_input)
-    @baixas_pan_ns.response(200, 'Sucesso', resposta_sucesso)
-    @baixas_pan_ns.response(400, 'Erro', resposta_erro)
-    @baixas_pan_ns.response(500, 'Erro interno', resposta_erro)
+@baixas_pan_ns.route('/upload')
+class UploadArquivo(Resource):
+    @baixas_pan_ns.expect(upload_model)
     def post(self):
-        """Processa arquivo de extrato bancário"""
-        try:
-            # Verificar se o arquivo foi enviado
-            if 'file' not in request.files:
-                return {'sucesso': False, 'erro': 'Nenhum arquivo enviado'}, 400
+        """Upload de arquivo Excel para processamento"""
+        if 'file' not in request.files:
+            return {'error': 'Nenhum arquivo enviado'}, 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return {'error': 'Nenhum arquivo selecionado'}, 400
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file_path = config.UPLOAD_DIR / filename
+            file.save(file_path)
             
-            file = request.files['file']
-            if file.filename == '':
-                return {'sucesso': False, 'erro': 'Nome de arquivo vazio'}, 400
+            # Parâmetros do processamento
+            banco = request.form.get('banco', 'PAN')
+            datas_para_buscar = request.form.get('datas_para_buscar', '').split(',')
+            tolerancia = float(request.form.get('tolerancia', 0.10))
             
-            # Validar extensão
-            if not file.filename.lower().endswith(('.xlsx', '.xls')):
-                return {'sucesso': False, 'erro': 'Arquivo deve ser Excel (.xlsx ou .xls)'}, 400
+            # Iniciar processamento
+            response = pan_service.iniciar_processamento(
+                arquivo_path=str(file_path),
+                banco=banco,
+                datas_para_buscar=datas_para_buscar,
+                tolerancia=tolerancia
+            )
             
-            # Salvar arquivo temporariamente
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
-                file.save(tmp_file.name)
-                caminho_arquivo = tmp_file.name
-            
-            try:
-                # Chamar service
-                service = BaixasPanService()
-                resultado = service.processar_extrato(caminho_arquivo)
-                
-                # Retornar resultado
-                status_code = 200 if resultado['sucesso'] else 400
-                return resultado, status_code
-                
-            finally:
-                # Limpar arquivo temporário
-                if os.path.exists(caminho_arquivo):
-                    os.unlink(caminho_arquivo)
-                    
-        except Exception as e:
-            current_app.logger.error(f'Erro em processar-extrato: {str(e)}')
-            return {'sucesso': False, 'erro': f'Erro interno: {str(e)}'}, 500
+            return response.to_dict(), 202
+        
+        return {'error': 'Tipo de arquivo não permitido'}, 400
 
-@baixas_pan_ns.route('/busca-direta')
-class BuscaDireta(ProtectedResource):
-    @baixas_pan_ns.doc(description='Busca direta por valores específicos nos arquivos PAN')
-    @baixas_pan_ns.expect(busca_direta_input)
-    @baixas_pan_ns.response(200, 'Sucesso', resposta_sucesso)
-    @baixas_pan_ns.response(400, 'Erro', resposta_erro)
+@baixas_pan_ns.route('/processar')
+class ProcessarPAN(Resource):
+    @baixas_pan_ns.expect(processamento_model)
     def post(self):
-        """Busca direta por valores"""
-        try:
-            dados = request.get_json()
-            valores = dados.get('valores', [])
-            datas = dados.get('datas', [])
-            
-            if not valores:
-                return {'sucesso': False, 'erro': 'Nenhum valor fornecido para busca'}, 400
-            
-            # Chamar service
-            service = BaixasPanService()
-            resultado = service.buscar_valores_diretos(valores, datas)
-            
-            status_code = 200 if resultado['sucesso'] else 400
-            return resultado, status_code
-            
-        except Exception as e:
-            current_app.logger.error(f'Erro em busca-direta: {str(e)}')
-            return {'sucesso': False, 'erro': f'Erro interno: {str(e)}'}, 500
+        """Processar arquivo PAN (já upload)"""
+        data = request.get_json()
+        
+        if not data or 'arquivo_path' not in data:
+            return {'error': 'Caminho do arquivo é obrigatório'}, 400
+        
+        response = pan_service.iniciar_processamento(
+            arquivo_path=data['arquivo_path'],
+            banco=data.get('banco', 'PAN'),
+            datas_para_buscar=data.get('datas_para_buscar', []),
+            tolerancia=data.get('tolerancia', 0.10)
+        )
+        
+        return response.to_dict(), 202
 
-@baixas_pan_ns.route('/pastas-disponiveis')
-class PastasDisponiveis(ProtectedResource):
-    @baixas_pan_ns.doc(description='Lista as pastas PAN disponíveis na rede')
-    @baixas_pan_ns.response(200, 'Sucesso')
-    def get(self):
-        """Lista pastas disponíveis"""
-        try:
-            service = BaixasPanService()
-            resultado = service.listar_pastas_disponiveis()
-            
-            status_code = 200 if resultado['sucesso'] else 400
-            return resultado, status_code
-            
-        except Exception as e:
-            current_app.logger.error(f'Erro em pastas-disponiveis: {str(e)}')
-            return {'sucesso': False, 'erro': f'Erro interno: {str(e)}'}, 500
+@baixas_pan_ns.route('/status/<string:job_id>')
+class StatusProcessamento(Resource):
+    def get(self, job_id):
+        """Consultar status do processamento"""
+        job = pan_service.get_job_status(job_id)
+        if not job:
+            return {'error': 'Job não encontrado'}, 404
+        
+        status = StatusProcessamento(
+            job_id=job.job_id,
+            status=job.status,
+            progresso=job.progresso,
+            mensagem=job.mensagem
+        )
+        
+        return status.to_dict()
 
-@baixas_pan_ns.route('/health')
-class HealthCheck(Resource):
-    @baixas_pan_ns.doc(description='Verifica saúde do serviço PAN')
+@baixas_pan_ns.route('/download/<string:job_id>/resultado')
+class DownloadResultado(Resource):
+    def get(self, job_id):
+        """Download do arquivo CSV com resultados"""
+        job = pan_service.get_job_status(job_id)
+        if not job or not job.arquivo_resultado:
+            return {'error': 'Arquivo de resultado não encontrado'}, 404
+        
+        if os.path.exists(job.arquivo_resultado):
+            return send_file(
+                job.arquivo_resultado,
+                as_attachment=True,
+                download_name=os.path.basename(job.arquivo_resultado)
+            )
+        
+        return {'error': 'Arquivo não encontrado'}, 404
+
+@baixas_pan_ns.route('/download/<string:job_id>/nao-encontrados')
+class DownloadNaoEncontrados(Resource):
+    def get(self, job_id):
+        """Download do arquivo TXT com não encontrados"""
+        job = pan_service.get_job_status(job_id)
+        if not job or not job.arquivo_nao_encontrados:
+            return {'error': 'Arquivo de não encontrados não encontrado'}, 404
+        
+        if os.path.exists(job.arquivo_nao_encontrados):
+            return send_file(
+                job.arquivo_nao_encontrados,
+                as_attachment=True,
+                download_name=os.path.basename(job.arquivo_nao_encontrados)
+            )
+        
+        return {'error': 'Arquivo não encontrado'}, 404
+
+@baixas_pan_ns.route('/datas-disponiveis')
+class DatasDisponiveis(Resource):
     def get(self):
-        """Health check"""
-        return {
-            'status': 'online',
-            'servico': 'baixas-pan',
-            'timestamp': '2024-01-01T00:00:00'  # Você pode usar datetime aqui
-        }, 200
+        """Listar datas disponíveis para busca"""
+        # Implementar lógica para listar pastas disponíveis
+        datas = ["01-01-2024", "02-01-2024", "03-01-2024"]  # Exemplo
+        return {'datas_disponiveis': datas}

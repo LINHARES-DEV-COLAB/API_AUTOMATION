@@ -1,175 +1,83 @@
 import pandas as pd
-from datetime import datetime
-import tempfile 
-import os
+import uuid
 from pathlib import Path
-import traceback
-from typing import Dict, List, Optional
+from typing import List, Dict, Any
+import logging
+from datetime import datetime
+import json
 
-class BaixasPanService:
+from ..Core.pan_processor import PanProcessor
+from APP.DTO.pan import ProcessamentoJob
+from ..Models.schemas import ProcessamentoResponse, StatusProcessamento
+
+logger = logging.getLogger(__name__)
+
+class PanService:
     def __init__(self):
-        self.BASE_DIR_REDE = r"\\172.17.67.14\Ares Motos\controladoria\financeiro\06.CONTAS A RECEBER\11.RELATÓRIOS BANCO PAN"
+        self.jobs: Dict[str, ProcessamentoJob] = {}
+        self.processor = PanProcessor()
     
-    def processar_extrato(self, arquivo_path: str) -> Dict:
-
+    def iniciar_processamento(self, arquivo_path: str, banco: str = "PAN", 
+                            datas_para_buscar: List[str] = None, tolerancia: float = 0.10) -> ProcessamentoResponse:
+        job_id = str(uuid.uuid4())
+        job = ProcessamentoJob(job_id)
+        self.jobs[job_id] = job
+        
+        # Processamento em thread (simulado)
+        import threading
+        thread = threading.Thread(
+            target=self._processar_async,
+            args=(job, arquivo_path, banco, datas_para_buscar or [], tolerancia)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return ProcessamentoResponse(
+            job_id=job.job_id,
+            status=job.status,
+            mensagem=job.mensagem
+        )
+    
+    def _processar_async(self, job: ProcessamentoJob, arquivo_path: str, banco: str, 
+                        datas_para_buscar: List[str], tolerancia: float):
         try:
-            from APP.Core.pan import extrair_valores_pan_do_arquivo, pipeline_pan_multidata
-            from main import debug_pastas_pan
-
-            valores_extraidos = extrair_valores_pan_do_arquivo(arquivo_path, termo_lanc="pan")
-
-            if not valores_extraidos:
-                return{
-                    "sucesso":False,
-                    "erro":"Nenhum valor PAN encontrado no extrato",
-                    "valores_extraidos": []
-                }
-            pastas_disponiveis = debug_pastas_pan(self.BASE_DIR_REDE, dias_para_verificar=2)
-            pastas_para_buscar = pastas_disponiveis[:4]
-
-            if not datas_para_buscar:
-                return {
-                    "sucesso": False,
-                    "erro": "Nenhuma pasta PAN encontrada",
-                    "pastas_buscadas": pastas_disponiveis
-                }
+            job.status = "processando"
+            job.progresso = 10
+            job.mensagem = "Iniciando processamento..."
             
-            pastas_disponiveis = debug_pastas_pan(self.BASE_DIR_REDE, dias_para_verificar=5)
-            datas_para_buscar = pastas_disponiveis[:4]
-            
-            if not datas_para_buscar:
-                return {
-                    "sucesso": False,
-                    "erro": "Nenhuma pasta PAN encontrada",
-                    "pastas_buscadas": pastas_disponiveis
-                }
-                
-            df_resultado = pipeline_pan_multidata(
-                arquivo_path,
-                self.BASE_DIR_REDE,
-                datas_para_buscar,
-                atol=0.10,
-                usar_valor_absoluto=True,
-                recursivo=True
+            # Processar arquivo PAN
+            resultados = self.processor.processar_pan_multidata(
+                caminho_arquivo=arquivo_path,
+                base_dir_rede=self.processor.pan_network_path,
+                datas_para_buscar=datas_para_buscar,
+                atol=tolerancia
             )
-
-            resultado = self._preparar_resposta(df_resultado, valores_extraidos, datas_para_buscar)
-            resultado["sucesso"] = True
             
-            return resultado
+            job.progresso = 80
+            job.mensagem = "Gerando arquivos de resultado..."
             
-        except Exception as e:
-            return {
-                "sucesso": False,
-                "erro": f"Erro no processamento: {str(e)}",
-                "traceback": traceback.format_exc()
-            }
-    def buscar_valores_diretos(self, valores: List[float], datas: Optional[List[str]] = None) -> Dict:
-        """
-        Busca direta por valores específicos
-        """
-        try:
-            from Core.pan import buscar_por_parte_inteira
-            from main import debug_pastas_pan
+            # Salvar resultados
+            job.arquivo_resultado = self._salvar_resultados_csv(resultados)
+            job.arquivo_nao_encontrados = self._salvar_nao_encontrados_txt(resultados)
             
-            # Se não especificou datas, usar as disponíveis
-            if not datas:
-                pastas_disponiveis = debug_pastas_pan(self.BASE_DIR_REDE, dias_para_verificar=5)
-                datas = pastas_disponiveis[:4]
-            
-            resultados_combinados = pd.DataFrame()
-            
-            for data_str in datas:
-                pasta_data = Path(self.BASE_DIR_REDE) / data_str
-                if pasta_data.exists():
-                    df_busca = buscar_por_parte_inteira(pasta_data, valores, atol=0.10)
-                    if not df_busca.empty:
-                        df_busca["__DATA_ORIGEM__"] = data_str
-                        resultados_combinados = pd.concat([resultados_combinados, df_busca], ignore_index=True)
-            
-            # Converter para formato de resposta
-            resultados_json = self._dataframe_para_json(resultados_combinados)
-            
-            return {
-                "sucesso": True,
-                "valores_buscados": valores,
-                "datas_buscadas": datas,
-                "resultados": resultados_json,
-                "total_encontrados": len(resultados_combinados)
-            }
+            job.status = "concluido"
+            job.progresso = 100
+            job.mensagem = "Processamento concluído com sucesso"
             
         except Exception as e:
-            return {
-                "sucesso": False,
-                "erro": f"Erro na busca direta: {str(e)}"
-            }
-    def listar_pastas_disponiveis(self) -> Dict:
-
-        try:
-            from main import debug_pastas_pan
-            
-            pastas = debug_pastas_pan(self.BASE_DIR_REDE, dias_para_verificar=7)
-            
-            return {
-                "sucesso": True,
-                "pastas_disponiveis": pastas,
-                "total_pastas": len(pastas),
-                "caminho_rede": self.BASE_DIR_REDE
-            }
-            
-        except Exception as e:
-            return {
-                "sucesso": False,
-                "erro": f"Erro ao listar pastas: {str(e)}"
-            }
+            job.status = "erro"
+            job.mensagem = f"Erro no processamento: {str(e)}"
+            logger.error(f"Erro no job {job.job_id}: {e}")
     
-    def _preparar_resposta(self, df_resultado: pd.DataFrame, valores_extraidos: List[float], datas_buscadas: List[str]) -> Dict:
-        """Prepara resposta formatada"""
-        
-        # Estatísticas
-        total_encontrados = len(df_resultado) if not df_resultado.empty else 0
-        
-        # Valores encontrados vs não encontrados
-        valores_encontrados = set()
-        if not df_resultado.empty and '__VALOR_TITULO__' in df_resultado.columns:
-            valores_encontrados = set(df_resultado["__VALOR_TITULO__"].dropna().astype(float))
-        
-        valores_nao_encontrados = [
-            valor for valor in valores_extraidos 
-            if not any(abs(valor - v) <= 0.10 for v in valores_encontrados)
-        ]
-        
-        # Resultados detalhados
-        resultados_detalhados = self._dataframe_para_json(df_resultado) if not df_resultado.empty else []
-        
-        return {
-            "estatisticas": {
-                "valores_extraidos": len(valores_extraidos),
-                "valores_encontrados": len(valores_encontrados),
-                "valores_nao_encontrados": len(valores_nao_encontrados),
-                "total_registros": total_encontrados,
-                "datas_buscadas": datas_buscadas,
-                "datas_com_resultados": list(set(df_resultado["__DATA_ORIGEM__"])) if not df_resultado.empty else []
-            },
-            "valores_extraidos": valores_extraidos,
-            "valores_nao_encontrados": valores_nao_encontrados,
-            "resultados": resultados_detalhados,
-            "timestamp": datetime.now().isoformat()
-        }
+    def _salvar_resultados_csv(self, resultados):
+        # Implementar lógica de salvamento
+        return "caminho/resultado.csv"
     
-    def _dataframe_para_json(self, df: pd.DataFrame) -> List[Dict]:
-        """Converte DataFrame para JSON"""
-        if df.empty:
-            return []
-        
-        # Selecionar colunas relevantes
-        colunas_relevantes = [
-            '__Arquivo__', '__Planilha__', '__Coluna_Encontrado__', 
-            '__VALOR_NUM__', '__VALOR_ORIGINAL__', '__TITULO__', 
-            '__DUPLICATA__', '__VALOR_TITULO__', '__DATA_ORIGEM__'
-        ]
-        
-        colunas_disponiveis = [col for col in colunas_relevantes if col in df.columns]
-        df_filtrado = df[colunas_disponiveis]
-        
-        return df_filtrado.fillna('').to_dict('records')
+    def _salvar_nao_encontrados_txt(self, resultados):
+        # Implementar lógica de salvamento
+        return "caminho/nao_encontrados.txt"
+    
+    def get_job_status(self, job_id: str) -> ProcessamentoJob:
+        return self.jobs.get(job_id)
+
+pan_service = PanService()
