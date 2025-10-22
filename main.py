@@ -1,4 +1,4 @@
-# main.py
+# main.py - VERSÃO CORRIGIDA
 from datetime import timedelta
 import os
 from pathlib import Path
@@ -51,6 +51,9 @@ def create_app(test_config=None):
         # Carregar config de teste passada como parâmetro
         app.config.from_mapping(test_config)
     
+    # Configurar CORS PRIMEIRO
+    _configure_cors(app)
+    
     # Inicializar extensões
     _initialize_extensions(app)
     
@@ -59,9 +62,6 @@ def create_app(test_config=None):
     
     # Registrar namespaces
     _register_namespaces(api)
-    
-    # Configurar CORS
-    _configure_cors(app)
     
     # Registrar rotas básicas
     _register_routes(app)
@@ -74,8 +74,6 @@ def create_app(test_config=None):
 def _initialize_extensions(app):
     """Inicializar todas as extensões Flask"""
     # JWT
-    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY" , "") 
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=int(os.getenv("JWT_EXPIRE_MIN", "30")))
     jwt = JWTManager(app)
     
     # Database
@@ -109,18 +107,6 @@ def _register_namespaces(api):
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
     api.add_namespace(baixas_pan_ns, path="/baixas-pan")
     api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
-
-    CORS(
-        app,
-        resources={
-            r"/*": {
-                "origins": ["http://127.0.0.1:5500", "http://localhost:5500"],
-                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-                "supports_credentials": True
-            }
-        }
-    )
 
 def _configure_cors(app):
     """Configurar CORS"""
@@ -214,4 +200,3 @@ if __name__ == "__main__":
     print(f"🗄️  Database: {DB_PATH}")
     
     app.run(port=port, host=host, debug=debug)
-    #
