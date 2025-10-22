@@ -257,7 +257,7 @@ def get_all_users(lojas):
     return usuarios
 
 def _norm_loja(nome: str) -> str:
-    return str(nome).strip().upper().replace(" ", "_")
+    return str(nome).strip().upper().replace(" ", "-")
 
 def _normaliza_lista_lojas_param(param: str) -> List[str]:
     """

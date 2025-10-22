@@ -22,7 +22,7 @@ DB_PATH = INSTANCE_DIR / "catalog.db"
 def create_app():
     app = Flask(__name__, instance_relative_config=True, instance_path=str(INSTANCE_DIR))
 
-    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY" , "")    
+    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY" , "") 
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=int(os.getenv("JWT_EXPIRE_MIN", "30")))
     jwt = JWTManager(app)
 
