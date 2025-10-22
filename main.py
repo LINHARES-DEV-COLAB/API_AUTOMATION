@@ -6,9 +6,11 @@ from flask import Flask, redirect, jsonify, request
 from flask_cors import CORS
 from flask_restx import Api
 from flask_jwt_extended import JWTManager
+from APP.Services import baixas_pan_service
 from APP.extensions_service import db
 from APP.Controllers.auth_controller import auth_ns
 from APP.Controllers.solicitacao_carga_route import solicitacao_carga_ns
+from APP.Controllers.baixas_pan_controller import baixas_pan_ns
 
 
 
@@ -45,6 +47,7 @@ def create_app():
 
     api.add_namespace(auth_ns, path="/auth")
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
+    api.add_namespace(baixas_pan_ns, path="/baixas-pan")
 
     CORS(
         app,

@@ -1,8 +1,7 @@
 from flask import request, current_app
 from flask_restx import Namespace, Resource, fields
 from APP.extensions_service import db
-from APP.Models.base_models import Sector, Automation, Run
-from APP.Services.teste_selenium import SeleniumTest
+from APP.Models.base_model import Sector, Automation, Run
 from flask_jwt_extended import jwt_required
 
 class ProtectedResource(Resource):
