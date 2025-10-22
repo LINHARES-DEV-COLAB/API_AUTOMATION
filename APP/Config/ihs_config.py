@@ -57,8 +57,14 @@ def configurar_extensao(driver):
     while not resposta:
         resposta = messagebox.askyesno(title='Extensão', message='Você precisa adicionar a extensão, já fez?')
 
+wdw = None
+PASTA_DOWNLOADS = None
+
 def _ensure_driver(_driver, _lock):
     """Garante que o driver global exista e esteja válido."""
+    global wdw
+    global PASTA_DOWNLOADS
+    
     with _lock:
         if _driver is None:
             _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome()
