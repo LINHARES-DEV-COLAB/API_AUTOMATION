@@ -2,11 +2,6 @@ from flask import Flask, request, jsonify, make_response
 from flask_restx import Namespace, Resource
 from APP.Services.solicitacao_carga_service import solicitacao_carga_main
 from APP.Config.ihs_config import _ensure_driver
-import threading
-import os
-
-_driver = None
-_lock = threading.Lock()
 
 solicitacao_carga_ns = Namespace('solicitacao-carga', description='Automação de Solicitação de Carga da CNH Honda')
 
@@ -33,7 +28,7 @@ class Teste(Resource):
         global _lock
 
         try:
-            driver, wdw, PASTA_DOWNLOADS = _ensure_driver(_driver, _lock)
+            driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
             _driver = driver
             driver.get(f'https://www.{url}.com')
             return jsonify({"ok": True, "resultado": 'Tudo certo'})

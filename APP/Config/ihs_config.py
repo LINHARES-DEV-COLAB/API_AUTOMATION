@@ -1,11 +1,21 @@
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.common.exceptions import WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from tkinter import messagebox
-from pathlib import Path as P
 from selenium import webdriver
-from selenium.common.exceptions import WebDriverException, NoSuchElementException
+from dotenv import load_dotenv
+from pathlib import Path as P
+import threading
+import oracledb
+import os
+
+load_dotenv()
+
+user_oracle = os.getenv('USER_ORACLE')
+password = os.getenv('PASSWORD_ORACLE')
+dsn = os.getenv('DSN')
 
 
 def config_webdriver_chrome():
@@ -20,7 +30,6 @@ def config_webdriver_chrome():
             driver (webdriver.Chrome): Instância do navegador Chrome.
             wdw (WebDriverWait): Objeto para gerenciar esperas explícitas (timeout de 180s).
     """
-    global driver
     try:
         PASTA_DOWNLOADS = P(r"\\172.17.67.14\findev$").resolve()
         PASTA_DOWNLOADS.mkdir(parents=True, exist_ok=True)
@@ -59,11 +68,15 @@ def configurar_extensao(driver):
 
 wdw = None
 PASTA_DOWNLOADS = None
+_driver = None
+_lock = threading.Lock()
 
-def _ensure_driver(_driver, _lock):
+def _ensure_driver():
     """Garante que o driver global exista e esteja válido."""
     global wdw
     global PASTA_DOWNLOADS
+    global _driver
+    global _lock
     
     with _lock:
         if _driver is None:
@@ -75,3 +88,61 @@ def _ensure_driver(_driver, _lock):
             except WebDriverException:
                 _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome()
     return (_driver, wdw, PASTA_DOWNLOADS)
+
+def connection():
+    """
+    Cria uma conexão com o banco de dados Oracle.
+
+    Parâmetros:
+        None
+
+    Retorno:
+        oracledb.Connection: Objeto de conexão ativo com o banco de dados Oracle.
+    """
+    oracledb.init_oracle_client(
+        lib_dir=r'C:\instantclient'
+    )
+
+    # Conexão com o Oracle
+    return oracledb.connect(
+        user=user_oracle,
+        password=password,
+        dsn=dsn
+    )
+
+
+def busca_dados_db():
+    """
+    Busca dados financeiros no banco de dados Oracle.
+
+    Executa uma query que retorna informações de títulos e clientes
+    com status 'EM', tipo 'CR', empresa = 2 e origem = 1252.
+
+    Parâmetros:
+        None
+
+    Retorno:
+        list[tuple]: Lista de tuplas contendo os resultados da query:
+            (revenda, título, duplicata, valor_título, status, cliente, nome_cliente).
+    """
+    conn = connection()
+
+    try:
+        cur = conn.cursor()
+
+        cur.execute(
+            f'''SELECT
+            A.REVENDA, A.TITULO, A.DUPLICATA, A.VAL_TITULO, A.DEPARTAMENTO, A.STATUS, A.CLIENTE, A.EMPRESA, B.NOME
+        FROM
+            FIN_TITULO  A
+        JOIN FAT_CLIENTE  B ON B.CLIENTE = A.CLIENTE 
+        WHERE
+            A.STATUS = 'EM'
+            AND A.TIPO = 'CR'
+            AND A.ORIGEM = 1252'''  # Origem = Venda com Financiamento
+        )
+
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
