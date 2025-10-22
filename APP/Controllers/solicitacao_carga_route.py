@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify, make_response
 from flask_restx import Namespace, Resource
-from APP.Services.solicitacao_carga import solicitacao_carga_main
+from APP.Services.solicitacao_carga_service import solicitacao_carga_main
 import os
 
-solicitacao_carga_ns = Namespace("solicitacao-carga", description="Automação de Solicitação de Carga da CNH Honda")
+solicitacao_carga_ns = Namespace('solicitacao-carga', description='Automação de Solicitação de Carga da CNH Honda')
 
-@solicitacao_carga_ns.route("/solicitacao-carga")
-class SolicitacaoCarga(Resource):
-    def run(self):
+@solicitacao_carga_ns.route('/solicitacao-carga')
+class SolicitaCarga(Resource):
+    def get(self):
         payload = request.get_json(silent=True) or {}
         all_flag = bool(payload.get("all"))
         lojas_list = payload.get("lojas")
