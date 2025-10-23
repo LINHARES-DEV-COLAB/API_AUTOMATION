@@ -820,7 +820,7 @@ def conciliacao_cdc_honda_main(lojas: str):
             lote_teste = pega_texto_elemento(driver, 'span_vCCNNLOT', 15)
             if lote_teste == None:
                 for i in range(1,15):
-                    if i == 1: espera_personalizada()
+                    if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
                     
                     try:
                         documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
@@ -838,7 +838,7 @@ def conciliacao_cdc_honda_main(lojas: str):
                     logs.append(f'{'=' * 60}\n')
                     for doc in documentos_nao_pagos:
                         for i in range(1,15):
-                            if i == 1: espera_personalizada()
+                            if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                             documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
 
@@ -858,7 +858,7 @@ def conciliacao_cdc_honda_main(lojas: str):
                     logs.append(f'{'=' * 60}\n')
                 
                 for i in range(1,15):
-                    if i == 1: espera_personalizada()
+                    if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                     lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
 
@@ -886,7 +886,7 @@ def conciliacao_cdc_honda_main(lojas: str):
             # ===================================
                 for p in range(2):
                     for i in range(1,16):
-                        if i == 1: espera_personalizada()
+                        if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                         try:
                             documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
@@ -912,7 +912,7 @@ def conciliacao_cdc_honda_main(lojas: str):
                         logs.append(f'{'=' * 60}\n')
                         for doc in documentos_nao_pagos:
                             for i in range(1,16):
-                                if i == 1: espera_personalizada()
+                                if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                                 documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
 
@@ -932,7 +932,7 @@ def conciliacao_cdc_honda_main(lojas: str):
                         logs.append(f'{'=' * 60}\n')
                     
                     for i in range(1,16):
-                        if i == 1: espera_personalizada()
+                        if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                         lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
 
