@@ -4,6 +4,7 @@ import uuid
 from werkzeug.utils import secure_filename
 from flask_restx import Namespace, Resource, fields
 from APP.Services.baixas_pan_service import pan_service
+from Automation_controller import ProtectedResource
 from ..Models.schemas import ProcessamentoRequest, ProcessamentoResponse, StatusProcessamento
 from ..Config.settings import config
 
@@ -32,7 +33,7 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @baixas_pan_ns.route('/upload')
-class UploadArquivo(Resource):
+class UploadArquivo(ProtectedResource):
     @baixas_pan_ns.expect(upload_model)
     def post(self):
         """Upload de arquivo Excel para processamento"""
@@ -66,7 +67,7 @@ class UploadArquivo(Resource):
         return {'error': 'Tipo de arquivo não permitido'}, 400
 
 @baixas_pan_ns.route('/processar')
-class ProcessarPAN(Resource):
+class ProcessarPAN(ProtectedResource):
     @baixas_pan_ns.expect(processamento_model)
     def post(self):
         """Processar arquivo PAN (já upload)"""
