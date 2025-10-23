@@ -12,6 +12,7 @@ from APP.Controllers.auth_controller import auth_ns
 from APP.Controllers.solicitacao_carga_controller import solicitacao_carga_ns
 from APP.Controllers.baixas_pan_controller import baixas_pan_ns
 from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_honda_ns
+from APP.Controllers.baixa_arquivos_cnh_controller import baixa_arquivos_cnh_honda_ns
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = Path(os.getenv("INSTANCE_DIR", BASE_DIR / "instance")).resolve()
@@ -107,6 +108,7 @@ def _register_namespaces(api):
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
     api.add_namespace(baixas_pan_ns, path="/baixas-pan")
     api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
+    api.add_namespace(baixa_arquivos_cnh_honda_ns, path="/baixa-arquivos-cnh-honda")
 
 def _configure_cors(app):
     """Configurar CORS"""
