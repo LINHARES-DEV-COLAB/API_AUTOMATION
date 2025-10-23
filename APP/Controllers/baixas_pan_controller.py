@@ -4,7 +4,7 @@ import uuid
 from werkzeug.utils import secure_filename
 from flask_restx import Namespace, Resource, fields
 from APP.Services.baixas_pan_service import pan_service
-from Automation_controller import ProtectedResource
+from APP.common.protected_resource import ProtectedResource
 from ..Models.schemas import ProcessamentoRequest, ProcessamentoResponse, StatusProcessamento
 from ..Config.settings import config
 
@@ -86,7 +86,7 @@ class ProcessarPAN(ProtectedResource):
         return response.to_dict(), 202
 
 @baixas_pan_ns.route('/status/<string:job_id>')
-class StatusProcessamento(Resource):
+class StatusProcessamento(ProtectedResource):
     def get(self, job_id):
         """Consultar status do processamento"""
         job = pan_service.get_job_status(job_id)
@@ -103,7 +103,7 @@ class StatusProcessamento(Resource):
         return status.to_dict()
 
 @baixas_pan_ns.route('/download/<string:job_id>/resultado')
-class DownloadResultado(Resource):
+class DownloadResultado(ProtectedResource):
     def get(self, job_id):
         """Download do arquivo CSV com resultados"""
         job = pan_service.get_job_status(job_id)
@@ -120,7 +120,7 @@ class DownloadResultado(Resource):
         return {'error': 'Arquivo não encontrado'}, 404
 
 @baixas_pan_ns.route('/download/<string:job_id>/nao-encontrados')
-class DownloadNaoEncontrados(Resource):
+class DownloadNaoEncontrados(ProtectedResource):
     def get(self, job_id):
         """Download do arquivo TXT com não encontrados"""
         job = pan_service.get_job_status(job_id)
@@ -137,7 +137,7 @@ class DownloadNaoEncontrados(Resource):
         return {'error': 'Arquivo não encontrado'}, 404
 
 @baixas_pan_ns.route('/datas-disponiveis')
-class DatasDisponiveis(Resource):
+class DatasDisponiveis(ProtectedResource):
     def get(self):
         """Listar datas disponíveis para busca"""
         # Implementar lógica para listar pastas disponíveis

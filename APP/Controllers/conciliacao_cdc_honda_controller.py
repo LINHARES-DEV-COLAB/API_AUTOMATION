@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify, make_response
 from flask_restx import Namespace, Resource
 from APP.Services.conciliacao_cdc_honda_service import conciliacao_cdc_honda_main
+from APP.common.protected_resource import ProtectedResource
+
 
 conciliacao_cdc_honda_ns = Namespace('conciliacao-cdc-honda', description='Automação de Solicitação de Carga da CNH Honda')
 
 @conciliacao_cdc_honda_ns.route("/<lojas>", methods=["POST"])
-class ConciliacaoCDCHonda(Resource):
+class ConciliacaoCDCHonda(ProtectedResource):
     def post(self, lojas: str):
         try:
             # chama seu orquestrador já com o parâmetro da rota
