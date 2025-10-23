@@ -2,11 +2,10 @@ from flask import request, current_app
 from flask_restx import Namespace, Resource, fields
 from APP.extensions_service import db
 from APP.Models.base_model import Sector, Automation, Run
-from flask_jwt_extended import jwt_required
+from APP.common.protected_resource import ProtectedResource
 
-class ProtectedResource(Resource):
-    """Base que protege todos os métodos da resource com JWT."""
-    method_decorators = [jwt_required()]
+
+
     
 auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
 
@@ -43,7 +42,7 @@ run_model = auto_ns.model("Run", {
 
 # ===== /sectors =====
 @auto_ns.route("/sectors")
-class Sectors(Resource):
+class Sectors(ProtectedResource):
     @auto_ns.marshal_list_with(sector_model, code=200)
     def get(self):
         try:
@@ -81,7 +80,7 @@ class Automations(ProtectedResource):
 
 # ===== /automations/<id>/run =====
 @auto_ns.route("/automations/<string:automation_id>/run")
-class RunAutomation(Resource):
+class RunAutomation(ProtectedResource):
     @auto_ns.marshal_with(run_model, code=202)
     def post(self, automation_id: str):
         try:
@@ -102,7 +101,7 @@ class RunAutomation(Resource):
 
 # ===== /runs (histórico) =====
 @auto_ns.route("/runs")
-class RunsHistory(Resource):
+class RunsHistory(ProtectedResource):
     @auto_ns.marshal_list_with(run_model, code=200)
     def get(self):
         rows = Run.query.order_by(Run.started_at.desc()).all()
@@ -117,7 +116,7 @@ class RunsHistory(Resource):
 
 # ===== /runs/<id> =====
 @auto_ns.route("/runs/<int:run_id>")
-class RunStatus(Resource):
+class RunStatus(ProtectedResource):
     @auto_ns.marshal_with(run_model, code=200)
     def get(self, run_id: int):
         r = Run.query.get(run_id)
@@ -133,7 +132,7 @@ class RunStatus(Resource):
         }, 200
 
 @auto_ns.route("/")
-class AutomationRoot(Resource):
+class AutomationRoot(ProtectedResource):
     def get(self):
         return {"ok": True}, 200
     

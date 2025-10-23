@@ -1,9 +1,14 @@
-from os import access
 from flask import request
 from flask_restx import Namespace, Resource, fields
-from APP.Config.auth_ldap import autenticar_upn, buscar_atributos
 from flask_jwt_extended import create_access_token
+import sys
+import os
 
+# Configurar path - UMA VEZ só no topo
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Agora importe normalmente
+from APP.Config.auth_ldap import autenticar_upn, buscar_atributos
 
 auth_ns = Namespace("auth", description="Autenticação LDAP")
 
@@ -34,7 +39,7 @@ class Login(Resource):
         ok_attr, attrs, _ = buscar_atributos(usuario, senha)
         claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail")} if ok_attr and attrs else {}
 
-        identity = {"user": usuario}
+        identity =  usuario
 
         access_token = create_access_token(identity=identity, additional_claims=claims)
 
