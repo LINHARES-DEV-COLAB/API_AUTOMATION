@@ -476,7 +476,47 @@ def tela(lojas: str) -> Dict[str, List[str]]:
 
     return {"LOJAS": lojas_out, "CODIGOS": codigos, "USUARIOS": usuarios, "SENHAS": senhas}
 
-def baixa_arquivos_cnh_honda_main(lojas: str):
+CRITICAS_PDF_XLSX = {"JUAZEIRO", "CRATO", "NOVA_ONDA_ARACATI"}
+
+def verificar_arquivos(pasta_downloads: str | os.PathLike, lojas: list[str]) -> dict:
+    """
+    Varre a pasta e retorna o status por loja.
+    Retorna dict com chaves:
+      - missing_zip: set(lojas)
+      - need_extract_from_zip: set(lojas)
+      - missing_pdf_or_xlsx: set(lojas)
+    """
+    base = P(pasta_downloads)
+    status = {
+        "missing_zip": set(),
+        "need_extract_from_zip": set(),
+        "missing_pdf_or_xlsx": set(),
+    }
+
+    for loja in lojas:
+        loja_u = str(loja).upper()
+        zip_path   = base / f"{loja_u}.zip"
+        txt_path   = base / f"{loja_u}.txt"
+        pdf_path   = base / f"{loja_u}.pdf"
+        xlsx_path  = base / f"extracao_pdf_{loja_u}.xlsx"
+
+        has_zip  = zip_path.exists()
+        has_txt  = txt_path.exists()
+        has_pdf  = pdf_path.exists()
+        has_xlsx = xlsx_path.exists()
+
+        if not has_zip:
+            status["missing_zip"].add(loja_u)
+        elif has_zip and not has_txt:
+            status["need_extract_from_zip"].add(loja_u)
+
+        if loja_u in CRITICAS_PDF_XLSX and (not has_pdf or not has_xlsx):
+            status["missing_pdf_or_xlsx"].add(loja_u)
+
+    return status
+
+
+def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: int = 1):
     hoje = datetime.now()
 
     path_file_log = r'\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Logs\\'
@@ -494,17 +534,18 @@ def baixa_arquivos_cnh_honda_main(lojas: str):
 
     path = Path()
 
-    # Busca todos os usuários cadastrados
-    try:
-        usuarios = get_all_users(lojas)
-    except Exception as e:
-        return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
-
     try:
         driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
-        PASTA_DOWNLOADS = os.path.join(PASTA_DOWNLOADS, r'Automação - CNH\Baixa de Arquivos\Arquivos Baixados')
+        PASTA_DOWNLOADS = PASTA_DOWNLOADS / r'Automação - CNH\Baixa de Arquivos\Arquivos Baixados'
     except Exception as e:
         return False, f'Erro ao criar o webdriver.\nDescrição: {str(e)}'
+
+    # --- monta lista das lojas realmente processadas (em maiúsculas) ---
+    try:
+        usuarios = get_all_users(lojas)
+        lojas_processadas = [u.nome_loja.upper() for u in usuarios]
+    except Exception as e:
+        return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
 
     try:
         driver.get(path.Url.url)
@@ -597,6 +638,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str):
                     driver.find_element(By.CSS_SELECTOR, f'{id_link} a').click()
                     
                     seleciona_uma_aba_do_navegador(driver, -1)
+                    driver.maximize_window()
 
                     clicar_pelo_atributo(driver, 'value', 'ok', path.Frame.btn_baixar)
 
@@ -748,4 +790,52 @@ def baixa_arquivos_cnh_honda_main(lojas: str):
             driver.get(path.Url.url)
             continue
 
+    # ===============================
+    #   VERIFICAÇÃO PÓS-PROCESSO
+    # ===============================
+    prefixo_zip = r"hda0334_new\d$\wwwhondaihs\internet\dwnhsfzip"  # o mesmo que você usa no fluxo
+
+    status = verificar_arquivos(PASTA_DOWNLOADS, lojas_processadas)
+    missing_zip = status["missing_zip"]
+    need_extract = status["need_extract_from_zip"]
+    missing_pdf_or_xlsx = status["missing_pdf_or_xlsx"]
+
+    # 1) Se houver .zip presente mas faltando .txt → extrai agora (sem refazer login)
+    for loja in need_extract:
+        try:
+            caminho_zip = os.path.join(PASTA_DOWNLOADS, f"{loja}.zip")
+            extrair_arquivo_alvo(caminho_zip, PASTA_DOWNLOADS, nome_arquivo=None, prefixo=prefixo_zip)
+            # caso sua extração gere nome diferente, garanta o rename:
+            try:
+                troca_nome_arquivo(PASTA_DOWNLOADS, f"{loja}.txt")
+            except Exception:
+                pass
+        except Exception as e:
+            logging.error(f"[PÓS] Erro ao extrair zip pendente da loja {loja}: {e}")
+
+    # 2) Recalcula após extração
+    status2 = verificar_arquivos(PASTA_DOWNLOADS, lojas_processadas)
+    missing_zip = status2["missing_zip"]
+    missing_pdf_or_xlsx = status2["missing_pdf_or_xlsx"]
+
+    # 3) Se ainda faltar ZIP (nada baixado) OU faltar PDF/XLSX (para lojas críticas)
+    lojas_para_refazer = set()
+    lojas_para_refazer |= missing_zip
+    lojas_para_refazer |= missing_pdf_or_xlsx
+
+    if lojas_para_refazer and retries < max_retries:
+        # Refaz SOMENTE as lojas pendentes
+        lojas_refazer_str = ",".join(sorted(lojas_para_refazer))
+        logging.error(f"[PÓS] Reexecutando para lojas pendentes: {lojas_refazer_str} (tentativa {retries+1}/{max_retries})")
+        # chamada recursiva controlada
+        return baixa_arquivos_cnh_honda_main(lojas_refazer_str, retries=retries+1, max_retries=max_retries)
+
+    # 4) Se ainda assim sobrou pendência, registra e finaliza com alerta
+    if lojas_para_refazer:
+        pend = ",".join(sorted(lojas_para_refazer))
+        logging.error(f"[PÓS] Pendências após {max_retries+1} tentativa(s): {pend}")
+        return False, f"Concluído com pendências: {pend}. Verifique credenciais/rede/antivírus."
+
     return True, 'A baixa dos arquivos da Honda foi efetuada corretamente.'
+
+
