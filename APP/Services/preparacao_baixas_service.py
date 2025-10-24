@@ -177,18 +177,21 @@ def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
         titulos, duplicatas, valores_linx, valores_honda, tipos_ajustes, origens = ([] for _ in range(6))
 
         dados_linx = busca_dados_db(banco=banco, empresa=empresa)
-        numeros_nota_linx = []
+        numeros_nota_linx = {}
         for dados in dados_linx:
             nota = str(dados[3]).replace(
                 'LANCAMENTO BANCARIO REFERENTE PAGAMENTO TITULO (CR): ', ''
             ).split('-')[0]
-            numeros_nota_linx.append(nota.strip())
+            numeros_nota_linx[nota.strip()] = dados[4]
         
         print(numeros_nota_linx)
+        print(numeros_notas_honda.to_list())
 
         for titulo, valor in zip(numeros_notas_honda, valores_honda_comparar):
             if titulo not in numeros_nota_linx:
                 nota_nao_paga = busca_dados_db_por_um(empresa=empresa, titulo=titulo)
+                print(nota_nao_paga)
+                print(titulo)
                 if nota_nao_paga:
                     titulo_db   = nota_nao_paga[0]
                     duplicata   = nota_nao_paga[1]
