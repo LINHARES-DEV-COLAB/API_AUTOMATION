@@ -277,16 +277,13 @@ def troca_nome_arquivo(PASTA_DOWNLOADS, nome_arquivo_destino):
         origem.replace(destino)
 
 
-def seleciona_uma_aba_do_navegador(driver, numero_janela, eh_para_fechar=False):
+def seleciona_uma_aba_do_navegador(driver, numero_janela):
     abas = espera_personalizada(
         lambda: driver.window_handles,
         retorno=True
     )
     
     driver.switch_to.window(abas[numero_janela])
-    if not eh_para_fechar:
-        driver.set_window_position(-3566,-3566)
-        driver.set_window_size(1366, 768)
 
 def extract_text_pdfplumber(nome_loja, pdf_path=r'\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados'):
     paginas = []
@@ -656,7 +653,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
 
                     sleep(random.randint(2, 4))
                     driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, 0)
                     driver.switch_to.frame(0)
 
                     try:
@@ -715,9 +712,9 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     seleciona_uma_aba_do_navegador(driver, -1)
                 except Exception as e:
                     logging.error(f'Erro ao acessar a tela para baixar o pdf.\nDescrição: {str(e)}\n{'-'*60}')
-                    seleciona_uma_aba_do_navegador(driver, -1, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, -1)
                     driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, 0)
                     driver.get(path.Url.url)
                     continue
 
@@ -750,9 +747,9 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     sleep(1)
                 except Exception as e:
                     logging.error(f'Erro baixar o arquivo pdf.\nDescrição: {str(e)}\n{'-'*60}')
-                    seleciona_uma_aba_do_navegador(driver, -1, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, -1)
                     driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, 0)
                     driver.get(path.Url.url)
                     continue
 
@@ -764,17 +761,17 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                 except Exception as e:
                     logging.error(f'Erro ao trocar o nome do pdf.\nDescrição: {str(e)}\n{'-'*60}')
                     for _ in range(2):
-                        seleciona_uma_aba_do_navegador(driver, -1, eh_para_fechar=True)
+                        seleciona_uma_aba_do_navegador(driver, -1)
                         driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, 0)
                     driver.get(path.Url.url)
                     continue
 
                 for _ in range(2):
-                    seleciona_uma_aba_do_navegador(driver, -1, eh_para_fechar=True)
+                    seleciona_uma_aba_do_navegador(driver, -1)
                     driver.close()
                 
-                seleciona_uma_aba_do_navegador(driver, 0, eh_para_fechar=True)
+                seleciona_uma_aba_do_navegador(driver, 0)
                 driver.switch_to.frame(0)
 
                 try:
@@ -801,7 +798,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
             
             if len(abas) > 1:
                 driver.close()
-                seleciona_uma_aba_do_navegador(driver, 0, eh_para_fechar=True)
+                seleciona_uma_aba_do_navegador(driver, 0)
                 
             driver.get(path.Url.url)
             continue
