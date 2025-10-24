@@ -11,7 +11,7 @@ class ConciliacaoCDCHonda(ProtectedResource):
     def get(self):
         try:
             # chama seu orquestrador já com o parâmetro da rota
-            driver, wdw, PASTA_DOWNLOAD = _ensure_driver(automacao=None)
+            driver, wdw, PASTA_DOWNLOAD = _ensure_driver()
             return jsonify({"ok": True, "resultado": 'Driver aberto com sucesso!'})
         except ValueError as ve:
             # erros de validação (lojas inexistentes, listas desbalanceadas etc.)

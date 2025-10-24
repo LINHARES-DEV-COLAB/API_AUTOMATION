@@ -347,7 +347,7 @@ def solicitacao_carga_main(lojas):
 
     path = Path()
 
-    driver, wdw, PASTA_DOWNLOADS = _ensure_driver(automacao=None)
+    driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
 
     driver.get(path.Url.url)
 

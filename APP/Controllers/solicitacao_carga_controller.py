@@ -29,7 +29,7 @@ class Teste(ProtectedResource):
         global _lock
 
         try:
-            driver, wdw, PASTA_DOWNLOADS = _ensure_driver(automacao=None)
+            driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
             _driver = driver
             driver.get(f'https://www.{url}.com')
             return jsonify({"ok": True, "resultado": 'Tudo certo'})

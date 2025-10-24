@@ -18,7 +18,7 @@ password = os.getenv('PASSWORD_ORACLE')
 dsn = os.getenv('DSN')
 
 
-def config_webdriver_chrome(automacao):
+def config_webdriver_chrome(PASTA_DOWNLOADS=r"\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados"):
     """
     Configura e inicializa o WebDriver do Chrome.
 
@@ -31,17 +31,7 @@ def config_webdriver_chrome(automacao):
             wdw (WebDriverWait): Objeto para gerenciar esperas explícitas (timeout de 180s).
     """
     try:
-        match automacao:
-            case 'CNH - Baixas':
-                PASTA_DOWNLOADS = P(r"\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados").resolve()
-            case 'CNH - Preparação':
-                PASTA_DOWNLOADS = P(r"\\172.17.67.14\findev$\Automação - CNH\Preparação das Baixas").resolve()
-            case 'CDC':
-                PASTA_DOWNLOADS = P(r"\\172.17.67.14\findev$\Automação - CDC").resolve()
-            case _:
-                PASTA_DOWNLOADS = P(r"\\172.17.67.14\findev$").resolve()
-
-        
+        PASTA_DOWNLOADS = P(PASTA_DOWNLOADS).resolve()
         PASTA_DOWNLOADS.mkdir(parents=True, exist_ok=True)
         
         service = ChromeService(ChromeDriverManager().install())
@@ -81,7 +71,7 @@ PASTA_DOWNLOADS = None
 _driver = None
 _lock = threading.Lock()
 
-def _ensure_driver(automacao):
+def _ensure_driver(pasta_downlod):
     """Garante que o driver global exista e esteja válido."""
     global wdw
     global PASTA_DOWNLOADS
@@ -90,7 +80,7 @@ def _ensure_driver(automacao):
     
     with _lock:
         if _driver is None:
-            _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome(automacao)
+            _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome(pasta_downlod)
         else:
             # Verifica se ainda está vivo
             try:
