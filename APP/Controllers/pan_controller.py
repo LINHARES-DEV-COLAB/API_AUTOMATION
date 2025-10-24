@@ -28,14 +28,23 @@ class ProcessarExtratoPan(Resource):
         """
         Processa extrato Itaú para identificar baixas PAN
         
-        Processo:
-        1. Upload e leitura do arquivo de extrato Itaú
-        2. Filtragem de lançamentos com "Pan"
-        3. Busca em diretório de rede por arquivos correspondentes
-        4. Extração de informações e consulta ao banco
-        5. Geração do resultado com Título, Duplicata e Valor
+        Parâmetros:
+        - file: Arquivo Excel do extrato Itaú (obrigatório)
+        - data: Data para busca no formato DD-MM-AAAA (opcional, padrão: data atual)
         """
         try:
+            # DEBUG DETALHADO - Ver todos os parâmetros recebidos
+            print(f"🎯 DEBUG COMPLETO DA REQUISIÇÃO:")
+            print(f"   Content-Type: {request.content_type}")
+            print(f"   Form data: {dict(request.form)}")
+            print(f"   Files: {list(request.files.keys())}")
+            print(f"   Args: {dict(request.args)}")
+            print(f"   Headers: {dict(request.headers)}")
+        
+        # Verifique TODOS os campos do form
+            for key in request.form:
+                print(f"   📋 Form field '{key}': '{request.form[key]}'")
+            
             # Verifica se o arquivo foi enviado
             if 'file' not in request.files:
                 return {'error': 'Nenhum arquivo enviado'}, 400
@@ -49,15 +58,24 @@ class ProcessarExtratoPan(Resource):
             if not file.filename.lower().endswith(('.xlsx', '.xls')):
                 return {'error': 'Tipo de arquivo não permitido. Use .xlsx ou .xls'}, 400
             
+            # Obtém a data do parâmetro (de várias fontes possíveis)
+            data_param = request.form.get('data') or request.args.get('data')
+            print(f"📅 DATA CAPTURADA: '{data_param}'")
+            
+            if not data_param:
+                print("⚠️  ATENÇÃO: Nenhuma data foi enviada na requisição!")
+            
             # Salva o arquivo temporariamente
             with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
                 file.save(temp_file.name)
                 temp_path = temp_file.name
             
             try:
-                # Processa o extrato
+                # Processa o extrato PASSANDO A DATA para o método principal
                 pan_service = PanService()
-                resultados = pan_service.processar_extrato(temp_path)
+                
+                # SEMPRE chama o método principal, passando a data como parâmetro
+                resultados = pan_service.processar_extrato(temp_path, data_param)
                 
                 if not resultados:
                     return {'message': 'Nenhum lançamento PAN encontrado no extrato'}, 404
@@ -67,7 +85,8 @@ class ProcessarExtratoPan(Resource):
                 
                 return {
                     'message': f'Processamento concluído - {len(dados_resultado)} registros encontrados',
-                    'data': dados_resultado
+                    'data': dados_resultado,
+                    'data_busca': data_param or 'automática'
                 }, 200
                 
             finally:
@@ -79,7 +98,6 @@ class ProcessarExtratoPan(Resource):
                     
         except Exception as e:
             return {'error': f'Erro no processamento: {str(e)}'}, 500
-
 @baixas_pan_ns.route('/health')
 class HealthCheck(Resource):
     def get(self):

@@ -1,6 +1,7 @@
 # main.py - VERSÃO CORRIGIDA
 from datetime import timedelta
 import os
+from APP.Config.supa_config import init_db
 from pathlib import Path
 from flask import Flask, redirect, jsonify, request 
 from flask_cors import CORS
@@ -14,7 +15,7 @@ from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_hon
 from APP.Controllers.baixa_arquivos_cnh_controller import baixa_arquivos_cnh_honda_ns
 from APP.Controllers.preparacao_baixas_controller import preparacao_baixas_ns
 from APP.Controllers.pan_controller import baixas_pan_ns
-
+from APP.Controllers.fidc_controller import fidc_ns
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = Path(os.getenv("INSTANCE_DIR", BASE_DIR / "instance")).resolve()
 INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,7 +29,7 @@ def create_app(test_config=None):
     app = Flask(__name__, 
                 instance_relative_config=True, 
                 instance_path=str(INSTANCE_DIR))
-
+    init_db(app)
     # Configurações básicas
     app.config.from_mapping(
         # JWT Config
@@ -111,6 +112,7 @@ def _register_namespaces(api):
     api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
     api.add_namespace(baixa_arquivos_cnh_honda_ns, path="/baixa-arquivos-cnh-honda")
     api.add_namespace(preparacao_baixas_ns, path="/preparacao-baixas")
+    api.add_namespace(fidc_ns, path="/fidc")
 
 def _configure_cors(app):
     """Configurar CORS"""

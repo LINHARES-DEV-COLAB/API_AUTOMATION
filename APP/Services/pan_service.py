@@ -28,14 +28,13 @@ class PanService:
     def __init__(self):
         self.base_dir_rede = r"\\172.17.67.14\Ares Motos\controladoria\financeiro\06.CONTAS A RECEBER\11.RELATÓRIOS BANCO PAN"
     
-    def processar_extrato(self, caminho_arquivo: str) -> List[ResultadoPan]:
-        """
-        Processa o extrato Itaú seguindo o fluxo especificado
-        """
+    def processar_extrato(self, caminho_arquivo: str, data_param: str = None) -> List[ResultadoPan]:
+
         try:
-            # DEBUG: Mostra informações das pastas
-            print("\n" + "="*60)
+            print(f"\n" + "="*60)
             print("🔍 INICIANDO PROCESSAMENTO DO EXTRATO PAN")
+            if data_param:
+                print(f"📅 DATA ENVIADA PELO USUÁRIO: {data_param}")
             print("="*60)
             
             # 1. Upload e leitura do arquivo
@@ -56,8 +55,8 @@ class PanService:
             for valor in valores_pan:
                 print(f"\n💰 PROCESSANDO VALOR: R$ {valor:,.2f}")
                 
-                # Buscar o arquivo correspondente ao valor
-                arquivo_encontrado = self._buscar_arquivo_por_valor(valor)
+                # Buscar o arquivo correspondente ao valor (PASSANDO A DATA)
+                arquivo_encontrado = self._buscar_arquivo_por_valor(valor, data_param)
                 
                 if arquivo_encontrado:
                     # 4. Extração de informações do relatório
@@ -78,7 +77,8 @@ class PanService:
                         print(f"⚠️  Chassi não encontrado no relatório")
                 else:
                     print(f"❌ Arquivo não encontrado para o valor R$ {valor:,.2f}")
-         # DEBUG FINAL: Mostra todos os resultados coletados
+            
+            # DEBUG FINAL
             print(f"\n" + "="*60)
             print("🔍 DEBUG FINAL - TODOS OS RESULTADOS COLETADOS")
             print("="*60)
@@ -212,9 +212,9 @@ class PanService:
             # print(f"      💥 Erro na conversão de '{valor}': {e}")
             return None
         
-    def _buscar_arquivo_por_valor(self, valor: float) -> Optional[Path]:
+    def _buscar_arquivo_por_valor(self, valor: float, data_param: str = None) -> Optional[Path]:
 
-        datas_busca = self._obter_datas_para_busca()
+        datas_busca = self._obter_datas_para_busca(data_param)
         
         print(f"   🔍 Buscando arquivo para R$ {valor:,.2f}")
         print(f"   📅 Datas: {datas_busca}")
@@ -233,11 +233,6 @@ class PanService:
             arquivos = [arq for arq in arquivos if not arq.name.startswith('~$')]
             
             print(f"   📄 Arquivos encontrados: {len(arquivos)}")
-            
-            # DEBUG: Mostra conteúdo do primeiro arquivo para análise
-            if arquivos:
-                print(f"   🧪 ANALISANDO PRIMEIRO ARQUIVO PARA DEBUG:")
-                self._debug_conteudo_arquivo(arquivos[0])
             
             for arquivo in arquivos:
                 print(f"      🔎 Analisando: {arquivo.name}")
@@ -259,22 +254,42 @@ class PanService:
         print(f"   ❌❌❌ NENHUM ARQUIVO ENCONTRADO PARA R$ {valor:,.2f}")
         return None
         
-    def _obter_datas_para_busca(self) -> List[str]:
-        """
-        Retorna as datas para busca seguindo a regra especificada
-        """
+    def _obter_datas_para_busca(self, data_param: str = None) -> List[str]:
+
+        if data_param:
+            try:
+                data_principal = datetime.strptime(data_param, "%d-%m-%Y")
+                datas = [data_principal.strftime("%d-%m-%Y")]
+                
+                # Adiciona o dia ANTERIOR (para casos em que o pagamento chegou antes)
+                dia_anterior = data_principal - timedelta(days=1)
+                datas.append(dia_anterior.strftime("%d-%m-%Y"))
+                
+                # Adiciona o dia SEGUINTE (para casos em que o pagamento chegou depois)
+                dia_seguinte = data_principal + timedelta(days=1)
+                datas.append(dia_seguinte.strftime("%d-%m-%Y"))
+                
+                # Se a data principal for sexta-feira, adiciona sábado e segunda
+                if data_principal.weekday() == 4:  # 4 = sexta
+                    sabado = data_principal + timedelta(days=1)
+                    segunda = data_principal + timedelta(days=3)
+                    datas.extend([sabado.strftime("%d-%m-%Y"), segunda.strftime("%d-%m-%Y")])
+                
+                print(f"   📅 DATAS EXPANDIDAS: {datas}")
+                return datas
+                
+            except ValueError as e:
+                print(f"   ⚠️ Data inválida '{data_param}', usando datas automáticas")
+        
+        # Comportamento padrão (quando não há data)
         hoje = datetime.now()
-        datas = [hoje.strftime("%d-%m-%Y")]  # Hoje
+        datas = [
+            hoje.strftime("%d-%m-%Y"),
+            (hoje - timedelta(days=1)).strftime("%d-%m-%Y"),
+            (hoje + timedelta(days=1)).strftime("%d-%m-%Y")
+        ]
         
-        # Dia anterior
-        ontem = hoje - timedelta(days=1)
-        datas.append(ontem.strftime("%d-%m-%Y"))
-        
-        # Se for segunda-feira, adiciona sábado
-        if hoje.weekday() == 0:  # 0 = segunda
-            sabado = hoje - timedelta(days=2)
-            datas.append(sabado.strftime("%d-%m-%Y"))
-        
+        print(f"   📅 DATAS AUTOMÁTICAS EXPANDIDAS: {datas}")
         return datas
     
     def _valor_no_nome_arquivo(self, arquivo: Path, valor: float) -> bool:
@@ -434,8 +449,8 @@ class PanService:
         conn = None
         try:
             # Configuração da conexão Oracle
-            user_oracle = os.getenv('USER_ORACLE_original')
-            password = os.getenv('PASSWORD_ORACLE_original')
+            user_oracle = os.getenv('USER_ORACLE')
+            password = os.getenv('PASSWORD_ORACLE')
             dsn = os.getenv('DSN')
 
             if not all([user_oracle, password, dsn]):
@@ -584,3 +599,106 @@ class PanService:
                     
         except Exception as e:
             print(f"         ❌ Erro no debug: {e}")
+
+    def processar_extrato_com_data(self, caminho_arquivo: str, data_busca: str) -> List[ResultadoPan]:
+      
+        try:
+            print(f"\n" + "="*60)
+            print(f"🔍 INICIANDO PROCESSAMENTO DO EXTRATO PAN")
+            print(f"📅 DATA ESPECÍFICA: {data_busca}")
+            print("="*60)
+            
+            # 1. Upload e leitura do arquivo
+            df_extrato = self._ler_extrato_itaú(caminho_arquivo)
+            
+            # 2. Filtragem de lançamentos relevantes
+            valores_pan = self._filtrar_lancamentos_pan(df_extrato)
+            
+            if not valores_pan:
+                print("❌ Nenhum lançamento PAN encontrado no extrato")
+                return []
+            
+            print(f"✅ Valores PAN encontrados: {valores_pan}")
+            
+            # 3. Busca em diretório de rede COM DATA ESPECÍFICA
+            resultados = []
+            
+            for valor in valores_pan:
+                print(f"\n💰 PROCESSANDO VALOR: R$ {valor:,.2f}")
+                
+                # Buscar o arquivo correspondente ao valor NA DATA ESPECÍFICA
+                arquivo_encontrado = self._buscar_arquivo_por_valor_com_data(valor, data_busca)
+                
+                if arquivo_encontrado:
+                    # 4. Extração de informações do relatório
+                    chassi = self._extrair_chassi_do_relatorio(arquivo_encontrado, valor)
+                    
+                    if chassi:
+                        print(f"✅ Chassi encontrado: {chassi}")
+                        # Consulta no banco de dados
+                        resultado_banco = self._consultar_banco_dados(chassi, valor)
+                        
+                        if resultado_banco:
+                            resultados.append(resultado_banco)
+                            print(f"✅✅✅ VALOR PROCESSADO COM SUCESSO: R$ {valor:,.2f}")
+                            print(f"   📝 Dados: Título {resultado_banco.titulo}, Duplicata {resultado_banco.duplicata}")
+                        else:
+                            print(f"⚠️  Dados não encontrados no banco para chassi {chassi}")
+                    else:
+                        print(f"⚠️  Chassi não encontrado no relatório")
+                else:
+                    print(f"❌ Arquivo não encontrado para o valor R$ {valor:,.2f} na data {data_busca}")
+
+            # DEBUG FINAL
+            print(f"\n" + "="*60)
+            print("🔍 DEBUG FINAL - TODOS OS RESULTADOS COLETADOS")
+            print("="*60)
+            print(f"📊 Total de valores PAN no extrato: {len(valores_pan)}")
+            print(f"📊 Total de resultados processados: {len(resultados)}")
+            
+            for i, resultado in enumerate(resultados):
+                print(f"   {i+1}. Título: {resultado.titulo}, Duplicata: {resultado.duplicata}, Valor: R$ {resultado.valor:,.2f}")
+            
+            print(f"📊 RESULTADO FINAL: {len(resultados)} registros processados")
+            return resultados
+            
+        except Exception as e:
+            print(f"❌ ERRO NO PROCESSAMENTO: {e}")
+            raise
+    
+    def _buscar_arquivo_por_valor_com_data(self, valor: float, data_busca: str) -> Optional[Path]:
+
+        print(f"   🔍 Buscando arquivo para R$ {valor:,.2f}")
+        print(f"   📅 DATA ESPECÍFICA: {data_busca}")
+        
+        pasta_data = Path(self.base_dir_rede) / data_busca
+        
+        if not pasta_data.exists():
+            print(f"   ❌ Pasta não existe: {data_busca}")
+            return None
+        
+        print(f"   📂 Verificando pasta: {data_busca}")
+        
+        # Busca arquivos Excel na pasta
+        arquivos = list(pasta_data.glob("*.xlsx")) + list(pasta_data.glob("*.xls"))
+        arquivos = [arq for arq in arquivos if not arq.name.startswith('~$')]
+        
+        print(f"   📄 Arquivos encontrados: {len(arquivos)}")
+        
+        for arquivo in arquivos:
+            print(f"      🔎 Analisando: {arquivo.name}")
+            
+            # Verifica se o valor está no nome do arquivo
+            if self._valor_no_nome_arquivo(arquivo, valor):
+                print(f"      ✅ ENCONTRADO no nome do arquivo!")
+                return arquivo
+            
+            # Ou verifica se o valor está no conteúdo do arquivo
+            if self._valor_no_conteudo_arquivo(arquivo, valor):
+                print(f"      ✅ ENCONTRADO no conteúdo do arquivo!")
+                return arquivo
+            
+            print(f"      ❌ Valor não encontrado em {arquivo.name}")
+        
+        print(f"   ❌❌❌ NENHUM ARQUIVO ENCONTRADO PARA R$ {valor:,.2f} na data {data_busca}")
+        return None
