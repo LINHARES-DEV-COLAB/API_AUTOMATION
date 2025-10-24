@@ -907,7 +907,11 @@ def conciliacao_cdc_honda_main(lojas: str):
                 contagem = Counter(documentos)
                 documentos_nao_pagos = [item for item, qtd in contagem.items() if qtd == 1]
 
-                for p in range(2):
+                quantas_pular = 2
+                if lote_teste == '0':
+                    quantas_pular = 1
+
+                for p in range(quantas_pular):
                     if documentos_nao_pagos:
                         logs.append(f'{'=' * 60}\n')
                         for doc in documentos_nao_pagos:
@@ -955,12 +959,13 @@ def conciliacao_cdc_honda_main(lojas: str):
                                     for nome, valor in zip(nomes, valores):
                                         dados[nome] = parse_valor(valor)
                     
-                    if p == 0:
-                        tenta_passar_pagina(driver)
-                        espera_personalizada(inicio_random=4, fim_random=8)
-                    else:
-                        tenta_passar_pagina_atras(driver)
-                        espera_personalizada(inicio_random=4, fim_random=8)
+                    if quantas_pular == 2:
+                        if p == 0:
+                            tenta_passar_pagina(driver)
+                            espera_personalizada(inicio_random=4, fim_random=8)
+                        else:
+                            tenta_passar_pagina_atras(driver)
+                            espera_personalizada(inicio_random=4, fim_random=8)
 
         except Exception as e:
             logs.append(f'🚫 Erro ao buscar os dados na loja de {user.nome_loja}.\nDescrição: {str(e)}')
