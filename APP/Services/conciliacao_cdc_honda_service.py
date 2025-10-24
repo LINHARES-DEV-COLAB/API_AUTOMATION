@@ -704,7 +704,7 @@ def conciliacao_cdc_honda_main(lojas: str):
     start_time = time()
 
     # Configura o WebDriver
-    driver, wdw, PASTA_DOWNLOADS = _ensure_driver('CDC')
+    driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
 
     url = 'https://www3.honda.com.br/corp/ihs/portal/#/login'
     driver.get(url)  # Entra no site do IHS

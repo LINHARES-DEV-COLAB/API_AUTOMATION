@@ -18,7 +18,7 @@ password = os.getenv('PASSWORD_ORACLE')
 dsn = os.getenv('DSN')
 
 
-def config_webdriver_chrome(PASTA_DOWNLOADS=r"\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados"):
+def config_webdriver_chrome(PASTA_DOWNLOADS):
     """
     Configura e inicializa o WebDriver do Chrome.
 
@@ -71,7 +71,7 @@ PASTA_DOWNLOADS = None
 _driver = None
 _lock = threading.Lock()
 
-def _ensure_driver(pasta_downlod):
+def _ensure_driver(pasta_downlod=r"\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados"):
     """Garante que o driver global exista e esteja válido."""
     global wdw
     global PASTA_DOWNLOADS
