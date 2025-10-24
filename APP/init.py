@@ -53,7 +53,7 @@ def create_app(test_config=None):
 
 def _register_blueprints(app):
     """Registrar todos os blueprints/controllers"""
-    from APP.Controllers.baixas_pan_controller import bp as pan_bp
+    from pan_controller import bp as pan_bp
     app.register_blueprint(pan_bp)
     
     # Futuros blueprints podem ser adicionados aqui

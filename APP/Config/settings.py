@@ -1,25 +1,32 @@
 import os
-from pathlib import Path
+from dotenv import load_dotenv
+import oracledb
+
+load_dotenv()
 
 class Config:
-    # Paths
-    BASE_DIR = Path(__file__).parent.parent.parent
-    DATA_DIR = BASE_DIR / "Data"
-    UPLOAD_DIR = DATA_DIR / "uploads"
-    RESULTS_DIR = DATA_DIR / "results"
-    TEMP_DIR = DATA_DIR / "temp"
+    # Configurações Oracle
+    USER_ORACLE = os.getenv('USER_ORACLE_original')
+    PASSWORD_ORACLE = os.getenv('PASSWORD_ORACLE_original')
+    DSN = os.getenv('DSN')
     
-    # Rede PAN
-    PAN_NETWORK_PATH = r"\\172.17.67.14\Ares Motos\controladoria\financeiro\06.CONTAS A RECEBER\11.RELATÓRIOS BANCO PAN"
+    # Diretório de rede base para os relatórios PAN
+    BASE_DIR_REDE = r"\\172.17.67.14\Ares Motos\controladoria\financeiro\06.CONTAS A RECEBER\11.RELATÓRIOS BANCO PAN"
     
-    # Flask
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
-    
-    def create_directories(self):
-        self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        self.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    # Configurações da aplicação
+    UPLOAD_FOLDER = 'uploads'
+    ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
-config = Config()
-config.create_directories()
+def get_oracle_connection():
+    """Estabelece conexão com o Oracle"""
+    try:
+        oracledb.init_oracle_client(lib_dir=r'C:\instantclient')
+    except:
+        pass  # Client já inicializado
+    
+    return oracledb.connect(
+        user=Config.USER_ORACLE,
+        password=Config.PASSWORD_ORACLE,
+        dsn=Config.DSN
+    )
