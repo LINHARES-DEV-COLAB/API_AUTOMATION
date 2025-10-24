@@ -4,7 +4,7 @@ from APP.common.protected_resource import ProtectedResource
 from APP.Config.ihs_config import _ensure_driver
 
 
-abrir_driver_ns = Namespace('baixa-arquivos-cnh-honda', description='Automação de Baixa de arquivos da CNH Honda')
+abrir_driver_ns = Namespace('abrir-driver', description='Abre a instância do driver')
 
 @abrir_driver_ns.route("/")
 class ConciliacaoCDCHonda(ProtectedResource):
