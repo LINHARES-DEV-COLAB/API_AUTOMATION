@@ -6,12 +6,12 @@ from flask import Flask, redirect, jsonify, request
 from flask_cors import CORS
 from flask_restx import Api
 from flask_jwt_extended import JWTManager
-from APP.Services import baixas_pan_service
+from APP.Services import pan_service
 from APP.extensions_service import db
 from APP.Controllers.auth_controller import auth_ns
 from APP.Controllers.solicitacao_carga_controller import solicitacao_carga_ns
-from APP.Controllers.baixas_pan_controller import baixas_pan_ns
 from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_honda_ns
+from APP.Controllers.pan_controller import baixas_pan_ns
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = Path(os.getenv("INSTANCE_DIR", BASE_DIR / "instance")).resolve()
