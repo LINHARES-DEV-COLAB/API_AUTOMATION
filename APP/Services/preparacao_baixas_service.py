@@ -145,100 +145,99 @@ def extract_text_pdfplumber(nome_loja, pdf_path):
         return False, f'Erro ao extrair os dados do pdf.\nDescrição: {str(e)}'
 
 
-def verifica_dados_linx(loja, path):
+# mapeia loja -> (banco, empresa)
+MAPA_EMPRESA = {
+    "JUAZEIRO":     (21018, 2),
+    "TERRA_SANTA":  (21018, 2),
+    "CRATO":        (51017, 5),
+    "ARACATI":      (31049, 3),
+}
+
+def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
     try:
-        caminho = os.path.join(path, f'extracao_pdf_{loja}.xlsx')
+        loja_u = loja.upper()
+        if loja_u not in MAPA_EMPRESA:
+            return False, f"Loja desconhecida: {loja}"
 
-        nome_loja = str(caminho).split('_')[-1].replace('.xlsx', '')
+        banco, empresa = MAPA_EMPRESA[loja_u]
 
-        loja = loja.upper()
+        # 1) monte o ARQUIVO correto e use-o no read_excel
+        dir_path = P(dir_path)
+        arquivo_origem = dir_path / f"extracao_pdf_{loja_u}.xlsx"
+        if not arquivo_origem.exists():
+            return False, f"Arquivo não encontrado: {arquivo_origem}"
 
-        if loja in nome_loja.upper():
-            banco = 21018
-            empresa = 2
-        elif loja in nome_loja.upper():
-            banco = 21018
-            empresa = 2
-        elif loja in nome_loja.upper():
-            banco = 51017
-            empresa = 5
-        elif loja in nome_loja.upper():
-            banco = 31049
-            empresa = 3
-        
-        arquivo_excel = pd.read_excel(io=path)
+        # 2) leia o Excel do ARQUIVO, não da pasta
+        df_src = pd.read_excel(arquivo_origem, engine="openpyxl")
 
-        numeros_notas_honda = arquivo_excel['NUMERO NOTA']
-        valores_honda_comparar = [parse_valor(v.strip()) for v in arquivo_excel['VALOR']]
+        # 3) prepare colunas de interesse
+        numeros_notas_honda = df_src['NUMERO NOTA'].astype(str)
+        valores_honda_comparar = [parse_valor(v.strip()) for v in df_src['VALOR'].astype(str)]
 
-        titulos = []
-        duplicatas = []
-        valores_linx = []
-        valores_honda = []
-        tipos_ajustes = []
-        origens = []
+        titulos, duplicatas, valores_linx, valores_honda, tipos_ajustes, origens = ([] for _ in range(6))
 
         dados_linx = busca_dados_db(banco=banco, empresa=empresa)
         numeros_nota_linx = []
         for dados in dados_linx:
-            nota = str(dados[3]).replace('LANCAMENTO BANCARIO REFERENTE PAGAMENTO TITULO (CR): ', '').split('-')[0]
-            numeros_nota_linx.append(str(nota).strip())
+            nota = str(dados[3]).replace(
+                'LANCAMENTO BANCARIO REFERENTE PAGAMENTO TITULO (CR): ', ''
+            ).split('-')[0]
+            numeros_nota_linx.append(nota.strip())
 
         for titulo, valor in zip(numeros_notas_honda, valores_honda_comparar):
-            titulo = str(titulo)
             if titulo not in numeros_nota_linx:
                 nota_nao_paga = busca_dados_db_por_um(empresa=empresa, titulo=titulo)
                 if nota_nao_paga:
-                    titulo_db = nota_nao_paga[0]
-                    duplicata = nota_nao_paga[1]
-                    valor_db = nota_nao_paga[2]
-                    origem = nota_nao_paga[-2]
+                    titulo_db   = nota_nao_paga[0]
+                    duplicata   = nota_nao_paga[1]
+                    valor_db    = nota_nao_paga[2]
+                    origem_code = nota_nao_paga[-2]
 
                     tipo_ajuste = compara_valores(valor_db=valor_db, valor_honda=valor)
                     titulos.append(titulo_db)
                     duplicatas.append(duplicata)
                     valores_linx.append(parse_valor_string(valor_db))
                     valores_honda.append(parse_valor_string(valor))
-                    tipos_ajustes.append(tipo_ajuste)
-                    origens.append('CNH' if origem == 1258 else 'Plano Legal')
+                    origens.append('CNH' if origem_code == 1258 else 'Plano Legal')
 
-        # --- Monta DataFrame com os dados compatíveis ---
-        cabecalhos = ['TITULO', 'DUPLICATA', 'VALOR']
-        cabecalhos_excel = ['TITULO', 'DUPLICATA', 'VALOR_LINX', 'VALOR_HONDA', 'TIPO DE AJUSTE', 'ORIGEM']
-        data = {
-            cabecalhos[0]: titulos,
-            cabecalhos[1]: duplicatas,
-            cabecalhos[2]: valores_linx
-        }
-        data_excel = {
-            cabecalhos_excel[0]: titulos,
-            cabecalhos_excel[1]: duplicatas,
-            cabecalhos_excel[2]: valores_linx,
-            cabecalhos_excel[3]: valores_honda,
-            cabecalhos_excel[4]: tipos_ajustes,
-            cabecalhos_excel[5]: origens,
-        }
-        df = pd.DataFrame(data, columns=cabecalhos)
-        df_excel = pd.DataFrame(data_excel, columns=cabecalhos_excel)
+        # 4) DataFrames de saída
+        df_csv = pd.DataFrame({
+            'TITULO': titulos,
+            'DUPLICATA': duplicatas,
+            'VALOR': valores_linx
+        })
+
+        df_xlsx = pd.DataFrame({
+            'TITULO': titulos,
+            'DUPLICATA': duplicatas,
+            'VALOR_LINX': valores_linx,
+            'VALOR_HONDA': valores_honda,
+            'TIPO DE AJUSTE': tipos_ajustes,
+            'ORIGEM': origens,
+        })
 
         hoje = datetime.now().strftime("%d-%m-%Y")
 
-        # Caminhos base usando Path (melhor que strings com \\)
-        base_dir = P(r"\\172.17.67.14\findev$\Automação - CNH\Preparação das Baixas")
-        csv_dir = base_dir / "Arquivos_csv"
-        excel_dir = base_dir / "Arquivos_excel"
+        # 5) Pastas de saída (garante existência)
+        base_dir   = P(r"\\172.17.67.14\findev$\Automação - CNH\Preparação das Baixas")
+        csv_dir    = base_dir / "Arquivos_csv"
+        excel_dir  = base_dir / "Arquivos_excel"
+        csv_dir.mkdir(parents=True, exist_ok=True)
+        excel_dir.mkdir(parents=True, exist_ok=True)
 
-        # Monta os nomes de arquivos de forma segura e legível
-        arquivo_csv = csv_dir / f"{nome_loja}_{hoje}.csv"
-        arquivo_excel = excel_dir / f"{nome_loja}_{hoje}.xlsx"
+        # 6) Nomes de arquivos (use a loja do parâmetro)
+        nome_loja_out = loja_u
+        out_csv  = csv_dir   / f"{nome_loja_out}_{hoje}.csv"
+        out_xlsx = excel_dir / f"{nome_loja_out}_{hoje}.xlsx"
 
-        # Salva os arquivos
-        df.to_csv(arquivo_csv, index=False, sep=';', encoding='utf-8-sig')
-        df_excel.to_excel(arquivo_excel, index=False)
+        # 7) Salvar
+        df_csv.to_csv(out_csv, index=False, sep=';', encoding='utf-8-sig')
+        df_xlsx.to_excel(out_xlsx, index=False)
 
-        return True, 'Automação de extração de dados do pdf concluída.'
+        return True, "Automação de extração de dados do pdf concluída."
+
     except Exception as e:
-        return False, f'Erro ao verificar os dados da Linx.\nDescrição: {str(e)}'
+        return False, f"Erro ao verificar os dados da Linx.\nDescrição: {e}"
 
 
 def parse_valor(valor_str: str) -> float:
