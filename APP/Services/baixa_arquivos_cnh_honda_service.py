@@ -536,7 +536,6 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
 
     try:
         driver, wdw, PASTA_DOWNLOADS = _ensure_driver('CNH - Baixas')
-        PASTA_DOWNLOADS = PASTA_DOWNLOADS / r'Automação - CNH\Baixa de Arquivos\Arquivos Baixados'
     except Exception as e:
         return False, f'Erro ao criar o webdriver.\nDescrição: {str(e)}'
 
