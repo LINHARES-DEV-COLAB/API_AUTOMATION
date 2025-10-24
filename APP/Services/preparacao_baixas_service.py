@@ -183,6 +183,8 @@ def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
                 'LANCAMENTO BANCARIO REFERENTE PAGAMENTO TITULO (CR): ', ''
             ).split('-')[0]
             numeros_nota_linx.append(nota.strip())
+        
+        print(numeros_nota_linx)
 
         for titulo, valor in zip(numeros_notas_honda, valores_honda_comparar):
             if titulo not in numeros_nota_linx:
@@ -198,6 +200,7 @@ def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
                     duplicatas.append(duplicata)
                     valores_linx.append(parse_valor_string(valor_db))
                     valores_honda.append(parse_valor_string(valor))
+                    tipos_ajustes.append(tipo_ajuste)
                     origens.append('CNH' if origem_code == 1258 else 'Plano Legal')
 
         # 4) DataFrames de saída
@@ -234,7 +237,7 @@ def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
         df_csv.to_csv(out_csv, index=False, sep=';', encoding='utf-8-sig')
         df_xlsx.to_excel(out_xlsx, index=False)
 
-        return True, "Automação de extração de dados do pdf concluída."
+        return True, "Automação de verificação de dados na linx realizada com sucesso."
 
     except Exception as e:
         return False, f"Erro ao verificar os dados da Linx.\nDescrição: {e}"
