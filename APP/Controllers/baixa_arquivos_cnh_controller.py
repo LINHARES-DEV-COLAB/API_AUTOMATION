@@ -11,7 +11,7 @@ class ConciliacaoCDCHonda(ProtectedResource):
     def post(self, lojas: str):
         try:
             # chama seu orquestrador já com o parâmetro da rota
-            status, resultado = baixa_arquivos_cnh_honda_main(lojas)
+            status, resultado = baixa_arquivos_cnh_honda_main(lojas, max_retries=5)
             return jsonify({"ok": status, "resultado": resultado})
         except ValueError as ve:
             # erros de validação (lojas inexistentes, listas desbalanceadas etc.)
