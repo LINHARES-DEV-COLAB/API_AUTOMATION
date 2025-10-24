@@ -515,6 +515,20 @@ def verificar_arquivos(pasta_downloads: str | os.PathLike, lojas: list[str]) -> 
 
     return status
 
+def garantir_arquivo(pasta: str | P, nome_arquivo: str, timeout: float = 20.0, intervalo: float = 0.5) -> P:
+    """
+    Espera até 'timeout' segundos pelo arquivo 'nome_arquivo' dentro de 'pasta'.
+    Retorna o Path do arquivo se encontrado; levanta TimeoutError se não aparecer.
+    """
+    pasta = P(pasta)
+    alvo = pasta / nome_arquivo
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if alvo.exists() and alvo.is_file() and alvo.stat().st_size >= 0:
+            return alvo
+        time.sleep(intervalo)
+    raise TimeoutError(f"Arquivo não encontrado após renomear: {alvo}")
+
 
 def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: int = 1):
     hoje = datetime.now()
@@ -649,6 +663,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     try:
                         sleep(random.randint(2, 4))
                         troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
+                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ✅ verificar
                     except Exception as e:
                         logging.error(f'Erro ao trocar o nome do arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
                         pular_loja = True
@@ -667,6 +682,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     try:
                         sleep(random.randint(2, 4))
                         troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")
+                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")  # ✅ verificar
                     except Exception as e:
                         logging.error(f'Erro ao trocar o nome do arquivo txt.\nDescrição: {str(e)}\n{'-'*60}')
                         pular_loja = True
@@ -745,6 +761,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     clicar_pelo_atributo(driver, 'value', 'imprimir', path.Janela.btn_imprimir)
 
                     troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")
+                    garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")  # ✅ verificar
                 except Exception as e:
                     logging.error(f'Erro ao trocar o nome do pdf.\nDescrição: {str(e)}\n{'-'*60}')
                     for _ in range(2):
@@ -763,6 +780,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
 
                 try:
                     extract_text_pdfplumber(nome_loja=user.nome_loja)
+                    garantir_arquivo(PASTA_DOWNLOADS, f"extracao_pdf_{user.nome_loja}.xlsx")  # ✅ verificar
                 except Exception as e:
                     logging.error(f'Erro ao extrair os dados do pdf para o excel.\nDescrição: {str(e)}\n{'-'*60}')
                     driver.get(path.Url.url)
@@ -807,6 +825,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
             # caso sua extração gere nome diferente, garanta o rename:
             try:
                 troca_nome_arquivo(PASTA_DOWNLOADS, f"{loja}.txt")
+                garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")  # ✅ verificar
             except Exception:
                 pass
         except Exception as e:
