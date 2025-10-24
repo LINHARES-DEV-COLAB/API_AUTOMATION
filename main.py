@@ -114,11 +114,8 @@ def _register_namespaces(api):
     api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
     api.add_namespace(baixa_arquivos_cnh_honda_ns, path="/baixa-arquivos-cnh-honda")
     api.add_namespace(preparacao_baixas_ns, path="/preparacao-baixas")
-<<<<<<< HEAD
     api.add_namespace(abrir_driver_ns, path="/abrir-driver")
-=======
     api.add_namespace(fidc_ns, path="/fidc")
->>>>>>> LucasLima/feature/estrutura-fidc
 
 def _configure_cors(app):
     """Configurar CORS"""
