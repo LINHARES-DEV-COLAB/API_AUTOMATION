@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import Dict, List
 from pathlib import Path as P
 from pathlib import PurePath
-from time import sleep
 import pandas as pd
 import pdfplumber
 import zipfile
@@ -522,11 +521,11 @@ def garantir_arquivo(pasta: str | P, nome_arquivo: str, timeout: float = 20.0, i
     """
     pasta = P(pasta)
     alvo = pasta / nome_arquivo
-    t0 = time.time()
-    while time.time() - t0 < timeout:
+    t0 = time()
+    while time() - t0 < timeout:
         if alvo.exists() and alvo.is_file() and alvo.stat().st_size >= 0:
             return alvo
-        time.sleep(intervalo)
+        sleep(intervalo)
     raise TimeoutError(f"Arquivo não encontrado após renomear: {alvo}")
 
 
