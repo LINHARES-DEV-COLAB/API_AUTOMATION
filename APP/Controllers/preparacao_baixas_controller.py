@@ -5,12 +5,12 @@ from APP.common.protected_resource import ProtectedResource
 
 preparacao_baixas_ns = Namespace('preparacao-baixas', description='Automação de Preparação de Baixas de CNH faltantes')
 
-@preparacao_baixas_ns.route("/verifica_dados_linx")  # Lembrar de trocar o \ por /
+@preparacao_baixas_ns.route("/verifica_dados_linx/<nome_loja>")  # Lembrar de trocar o \ por /
 class VerificacaoDadosLinx(ProtectedResource):
-    def post(self):
+    def post(self, nome_loja: str):
         try:
             # chama seu orquestrador já com o parâmetro da rota
-            status, resultado = verifica_dados_linx(path=r'\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados')
+            status, resultado = verifica_dados_linx(nome_loja, path=r'\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados')
             return jsonify({"ok": status, "resultado": resultado})
         except ValueError as ve:
             # erros de validação (lojas inexistentes, listas desbalanceadas etc.)

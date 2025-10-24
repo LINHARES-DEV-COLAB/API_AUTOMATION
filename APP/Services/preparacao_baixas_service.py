@@ -145,20 +145,22 @@ def extract_text_pdfplumber(nome_loja, pdf_path):
         return False, f'Erro ao extrair os dados do pdf.\nDescrição: {str(e)}'
 
 
-def verifica_dados_linx(path):
+def verifica_dados_linx(loja, path):
     try:
         nome_loja = str(path).split('_')[-1].replace('.xlsx', '')
 
-        if 'JUAZEIRO' in nome_loja.upper():
+        loja = loja.upper()
+
+        if loja in nome_loja.upper():
             banco = 21018
             empresa = 2
-        elif 'CRATO' in nome_loja.upper():
+        elif loja in nome_loja.upper():
             banco = 21018
             empresa = 2
-        elif 'ARACATI' in nome_loja.upper():
+        elif loja in nome_loja.upper():
             banco = 51017
             empresa = 5
-        elif 'INHAMUNS' in nome_loja.upper():
+        elif loja in nome_loja.upper():
             banco = 31049
             empresa = 3
         
