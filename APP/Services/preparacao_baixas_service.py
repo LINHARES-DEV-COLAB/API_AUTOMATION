@@ -147,7 +147,9 @@ def extract_text_pdfplumber(nome_loja, pdf_path):
 
 def verifica_dados_linx(loja, path):
     try:
-        nome_loja = str(path).split('_')[-1].replace('.xlsx', '')
+        caminho = os.path.join(path, f'extracao_pdf_{loja}.xlsx')
+
+        nome_loja = str(caminho).split('_')[-1].replace('.xlsx', '')
 
         loja = loja.upper()
 
