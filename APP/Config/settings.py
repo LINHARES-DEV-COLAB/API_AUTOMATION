@@ -6,8 +6,8 @@ load_dotenv()
 
 class Config:
     # Configurações Oracle
-    USER_ORACLE = os.getenv('USER_ORACLE_original')
-    PASSWORD_ORACLE = os.getenv('PASSWORD_ORACLE_original')
+    USER_ORACLE = os.getenv('USER_ORACLE')
+    PASSWORD_ORACLE = os.getenv('PASSWORD_ORACLE')
     DSN = os.getenv('DSN')
     
     # Diretório de rede base para os relatórios PAN

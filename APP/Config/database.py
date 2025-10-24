@@ -7,8 +7,8 @@ load_dotenv()
 
 class DatabaseConfig:
     def __init__(self):
-        self.user = os.getenv('USER_ORACLE_original')
-        self.password = os.getenv('PASSWORD_ORACLE_original')
+        self.user = os.getenv('USER_ORACLE')
+        self.password = os.getenv('PASSWORD_ORACLE')
         self.dsn = os.getenv('DSN')
     
     def get_connection(self):
