@@ -27,6 +27,7 @@ class Path:
         id_linha_ccc='table#Grid2ContainerTbl tbody tr#Grid2ContainerRow'  # Usar randomico para  _0001
         id_link_ccc='span#span_vDESCREG'  # Usar randomico para  _0001
         btn_baixar='table#TABLE2_MPAGE table#T_CONFIRMA tbody tr td input'  # Clicar pelo atributo value ok
+        texto_interno='pre'
     
     class Janela:
         input_inicio='input#vDTINI'
