@@ -7,7 +7,7 @@ from APP.common.protected_resource import ProtectedResource
 
 fidc_ns = Namespace('fidc', description='Emissão de boletos para as montadoreas via FIDC')
 
-@fidc_ns.route('/health')
+@fidc_ns.route('/')
 class teste(ProtectedResource):
     def get(self):
         run()

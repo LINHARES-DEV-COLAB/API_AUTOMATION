@@ -1,13 +1,17 @@
-from .base_model import CoreModel
-from .enums_model import AutomationType  # Lembra dos Enums que criamos?
-from typing import Optional
+# APP/Models/automation.py
+from APP.Config.supa_config import db
 
-class Automation(CoreModel):
-    name: str        
-    description: Optional[str] = None              
-    script_path: str    
-    type: AutomationType           
-    schedule_cron: Optional[str] = None               
-    ax_execution_time: int = 3600    
-    created_by: str    
-    department_id: str          
+class Automation(db.Model):
+    __tablename__ = "automations"
+    id = db.Column(db.Text, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text)
+    script_path = db.Column(db.Text, nullable=False)
+    type = db.Column(db.Text, nullable=False)  # 'manual' | 'scheduled' | 'triggered'
+    schedule_cron = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, nullable=False, server_default=db.text("true"))
+    max_execution_time = db.Column(db.Integer, nullable=False, server_default=db.text("3600"))
+    created_by = db.Column(db.Text, db.ForeignKey("users.id"))
+    department_id = db.Column(db.Text, db.ForeignKey("departments.id"))
+    created_at = db.Column(db.DateTime(timezone=True), server_default=db.func.now())
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=db.func.now())

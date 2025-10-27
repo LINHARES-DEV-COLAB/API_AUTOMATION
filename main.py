@@ -8,7 +8,6 @@ from flask_cors import CORS
 from flask_restx import Api
 from flask_jwt_extended import JWTManager
 from APP.Services import pan_service
-from APP.extensions_service import db
 from APP.Controllers.auth_controller import auth_ns
 from APP.Controllers.solicitacao_carga_controller import solicitacao_carga_ns
 from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_honda_ns
@@ -16,12 +15,15 @@ from APP.Controllers.baixa_arquivos_cnh_controller import baixa_arquivos_cnh_hon
 from APP.Controllers.preparacao_baixas_controller import preparacao_baixas_ns
 from APP.Controllers.pan_controller import baixas_pan_ns
 from APP.Controllers.abrir_driver_controller import abrir_driver_ns
-
 from APP.Controllers.fidc_controller import fidc_ns
+from APP.Controllers.automation_controller import auto_ns
+from APP.Config.supa_config import init_db, db
+from sqlalchemy import text
+
+
 BASE_DIR = Path(__file__).resolve().parent
-INSTANCE_DIR = Path(os.getenv("INSTANCE_DIR", BASE_DIR / "instance")).resolve()
-INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = INSTANCE_DIR / "catalog.db"
+INSTANCE_DIR = BASE_DIR / "instance"             # <- define
+INSTANCE_DIR.mkdir(parents=True, exist_ok=True) 
 
 def create_app(test_config=None):
     """
@@ -39,7 +41,6 @@ def create_app(test_config=None):
         JWT_ACCESS_TOKEN_EXPIRES=timedelta(minutes=int(os.getenv("JWT_EXPIRE_MIN", "30"))),
         
         # Database Config
-        SQLALCHEMY_DATABASE_URI=f"sqlite:///{DB_PATH}",
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SQLALCHEMY_ECHO=True,
         
@@ -81,12 +82,8 @@ def _initialize_extensions(app):
     # JWT
     jwt = JWTManager(app)
     
-    # Database
-    db.init_app(app)
-    
-    # Criar tabelas (se necessário)
-    with app.app_context():
-        db.create_all()
+        
+
 
 def _configure_api(app):
     """Configurar Flask-RESTX API"""
@@ -108,6 +105,7 @@ def _configure_api(app):
 
 def _register_namespaces(api):
     """Registrar todos os namespaces do Flask-RESTX"""
+    api.add_namespace(auto_ns, path="/automation")
     api.add_namespace(auth_ns, path="/auth")
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
     api.add_namespace(baixas_pan_ns, path="/baixas-pan")
@@ -155,8 +153,7 @@ def _register_routes(app):
             "app_name": "Automations API",
             "version": "1.0.0",
             "environment": os.getenv("FLASK_ENV", "development"),
-            "debug_mode": app.debug,
-            "database": str(DB_PATH)
+            "debug_mode": app.debug
         }
 
 def _register_error_handlers(app):
@@ -196,9 +193,21 @@ if __name__ == "__main__":
     # Criar a aplicação usando a factory
     app = create_app()
     
+    @app.get("/db/health")
+    def db_health():
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text("select 1"))
+            return {"db": "ok"}, 200
+        except Exception as e:
+            # loga a causa e devolve 503 (serviço indisponível)
+            app.logger.exception("DB healthcheck falhou: %s", e)
+            return {"db": "down", "error": str(e)}, 503
     # Configurações de execução
-    port = int(os.getenv("PORT", "5000"))
-    host = os.getenv("HOST", "0.0.0.0")
+    # port = int(os.getenv("PORT", "5000"))
+    # host = os.getenv("HOST", "0.0.0.0")
+    host = "127.0.0.1"
+    port = "5000"
     debug = os.getenv("FLASK_DEBUG", "True").lower() == "true"
     
     print(f"🚀 Iniciando Automations API...")
@@ -206,6 +215,6 @@ if __name__ == "__main__":
     print(f"🔧 Port: {port}")
     print(f"🐛 Debug: {debug}")
     print(f"📁 Instance Dir: {INSTANCE_DIR}")
-    print(f"🗄️  Database: {DB_PATH}")
+
     
     app.run(port=port, host=host, debug=debug)
