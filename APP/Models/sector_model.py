@@ -1,8 +1,8 @@
-from datetime import datetime
+# APP/Models/sector.py
 from APP.Config.supa_config import db
 
-class Department(db.Model):
-    __tablename__ = "departments"
+class Sector(db.Model):
+    __tablename__ = "departments"  # mapeia seu DDL de departments
     id = db.Column(db.Text, primary_key=True)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
