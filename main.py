@@ -16,7 +16,7 @@ from APP.Controllers.preparacao_baixas_controller import preparacao_baixas_ns
 from APP.Controllers.pan_controller import baixas_pan_ns
 from APP.Controllers.abrir_driver_controller import abrir_driver_ns
 from APP.Controllers.fidc_controller import fidc_ns
-from APP.Controllers.automation_controller import auto_ns
+from APP.Controllers.Automation_controller import auto_ns
 from APP.Config.supa_config import init_db, db
 from sqlalchemy import text
 

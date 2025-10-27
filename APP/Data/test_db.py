@@ -2,7 +2,7 @@ import os
 import sqlite3
 
 def test_network_database():
-    network_path = r"T:\Desenvolvedores\_db"
+    network_path = r"\\fileserver\tic\Desenvolvedores\_db"
     db_path = os.path.join(network_path, "automation_api.db")
     
     print(f"🔍 Testando acesso à rede: {network_path}")

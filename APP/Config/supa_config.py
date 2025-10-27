@@ -45,7 +45,7 @@ db = SQLAlchemy()
 
 def init_db(app):
     # Caminho da rede compartilhada
-    network_path = r"T:\Desenvolvedores\_db"
+    network_path = r"\\fileserver\tic\Desenvolvedores\_db"
     db_filename = "automation_api.db"
     db_path = os.path.join(network_path, db_filename)
     
