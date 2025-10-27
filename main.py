@@ -204,10 +204,8 @@ if __name__ == "__main__":
             app.logger.exception("DB healthcheck falhou: %s", e)
             return {"db": "down", "error": str(e)}, 503
     # Configurações de execução
-    # port = int(os.getenv("PORT", "5000"))
-    # host = os.getenv("HOST", "0.0.0.0")
-    host = "127.0.0.1"
-    port = "5000"
+    port = int(os.getenv("PORT", "5000"))
+    host = os.getenv("HOST", "0.0.0.0")
     debug = os.getenv("FLASK_DEBUG", "True").lower() == "true"
     
     print(f"🚀 Iniciando Automations API...")
