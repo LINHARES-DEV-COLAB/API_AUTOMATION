@@ -18,16 +18,9 @@ fidc_response_model = fidc_ns.model('FIDCResponse', {
 class FIDCController(ProtectedResource):
     @fidc_ns.marshal_with(fidc_response_model)
     def get(self):
-        """
-        Executa o serviço FIDC se a automação estiver ativa
-        """
         try:
             automation_id = "fidc"
-            
-            # ✅ FORÇA recarregamento do banco
-            db.session.expire_all()  # Limpa cache
-            
-            # ✅ Busca com recarregamento explícito
+            db.session.expire_all() 
             automation = Automation.query.filter_by(id=automation_id).first()
             
             if automation:
