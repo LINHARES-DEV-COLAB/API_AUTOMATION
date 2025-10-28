@@ -6,9 +6,9 @@ from APP.common.protected_resource import ProtectedResource
 
 solicitacao_carga_ns = Namespace('solicitacao-carga', description='Automação de Solicitação de Carga da CNH Honda')
 
-@solicitacao_carga_ns.route("/<lojas>", methods=["POST"])
+@solicitacao_carga_ns.route("/<lojas>")
 class SolicitacaoCarga(ProtectedResource):
-    def post(self, lojas: str):
+    def get(self, lojas: str):
         try:
             # chama seu orquestrador já com o parâmetro da rota
             status, resultado = solicitacao_carga_main(lojas)
@@ -22,9 +22,9 @@ class SolicitacaoCarga(ProtectedResource):
 
 
 
-@solicitacao_carga_ns.route("/go/<url>", methods=["POST"])
+@solicitacao_carga_ns.route("/go/<url>")
 class Teste(ProtectedResource):
-    def post(self, url: str):
+    def get(self, url: str):
         global _driver
         global _lock
 
