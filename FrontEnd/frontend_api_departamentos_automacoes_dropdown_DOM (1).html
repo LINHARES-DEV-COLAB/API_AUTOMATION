@@ -1,10 +1,11 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="pt-br">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Frontend Básico – Teste da API</title>
-  <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Frontend Básico – Teste da API</title>
+<style>
     :root {
       --bg: #0f1115; --panel:#161a22; --soft:#1d2330; --text:#e8ecf1; --muted:#a6b0bf; --accent:#e11d2e; --ok:#1db954; --warn:#f0b90b; --err:#ff4d4d;
     }
@@ -45,80 +46,100 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>Frontend de Testes – Auth + Rotas Protegidas</h1>
-  </header>
-  <main>
-    <!-- Coluna esquerda: Config + Login -->
-    <section class="card">
-      <div class="body">
-        <h2>Configuração rápida</h2>
-        <label>BASE_URL da API</label>
-        <input id="baseUrl" value="http://172.17.67.19:8980" />
-        <div class="inline mt12">
-          <button class="btn" id="btnHealth">Testar /health</button>
-          <a class="btn ghost" id="linkDocs" target="_blank" rel="noreferrer">Abrir /docs</a>
-        </div>
+<header>
+<h1>Frontend de Testes – Auth + Rotas Protegidas</h1>
+</header>
+<main>
+<!-- Coluna esquerda: Config + Login -->
+<section class="card">
+<div class="body">
+<h2>Configuração rápida</h2>
+<label>BASE_URL da API</label>
+<input id="baseUrl" value="http://localhost:5000/"/>
+<div class="inline mt12">
+<button class="btn" id="btnHealth">Testar /health</button>
+<a class="btn ghost" id="linkDocs" rel="noreferrer" target="_blank">Abrir /docs</a>
+</div>
+<h2 class="mt20">Login (LDAP)</h2>
+<div class="grid">
+<div>
+<label>Usuário</label>
+<input id="username" placeholder="seu.usuario"/>
+</div>
+<div>
+<label>Senha</label>
+<input id="password" placeholder="••••••••" type="password"/>
+</div>
+</div>
+<div class="inline mt12">
+<button class="btn primary" id="btnLogin">Entrar</button>
+<span class="status" id="authStatus"></span>
+</div>
+<div class="mt12 tokenBox hidden" id="tokenWrap">
+<strong>JWT:</strong> <span id="tokenText"></span>
+</div>
+<div class="mt8 inline">
+<span class="pill">⚠️ Dica de segurança: este demo usa <em>sessionStorage</em> para guardar o token. Em produção, prefira armazenar em memória e renovar com refresh tokens/rotas dedicadas.</span>
+</div>
+</div>
+</section>
+<!-- Coluna direita: chamadas protegidas e resultados -->
+<section class="card">
+<div class="body">
+<h2>Chamadas</h2>
+<div class="inline">
+<button class="btn" id="btnSectors">GET /automation/departments</button>
+<button class="btn" id="btnAutomations">GET /automation/automations/{departament_id}</button>
+<div class="inline mt12">
+<input id="departmentId" placeholder="departament_id" style="flex:1"/>
+<button class="btn" id="btnAutomationsByDept">Listar automações do departamento</button>
+</div>
+<button class="btn" id="btnRuns">GET /automation/runs</button>
+</div>
+<div class="row mt12">
+<div>
+<label>automationId para executar</label>
+<input id="automationId" placeholder="ex.: my_automation_id"/>
+</div>
+<div class="inline" style="align-items:flex-end;">
+<button class="btn" id="btnRun">POST /automation/automations/:id/run</button>
+</div>
+</div>
+<h2 class="mt16">Selecionar por dropdown</h2>
+<div class="inline mt12">
+<label style="min-width:160px">Setor (department)</label>
+<select id="selDepartment" style="flex:1">
+<option value="">— selecione —</option>
+</select>
+<button class="btn" id="btnLoadDepartments">Carregar setores</button>
+</div>
+<div class="inline mt12">
+<label style="min-width:160px">Automação</label>
+<select id="selAutomation" style="flex:1">
+<option value="">— selecione um setor primeiro —</option>
+</select>
+<button class="btn" id="btnShowAutomation">Mostrar automações do setor</button>
+</div>
+<div class="mt16">
+<table class="table" id="tbl"></table>
+</div>
+<h2 class="mt16">Log</h2>
+<div class="log" id="log"><pre></pre></div>
+</div>
+</section>
+</main>
+<footer>
+<span>Feito para testes rápidos de autenticação JWT e rotas protegidas. Ajuste a BASE_URL e rode.</span>
+</footer>
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    console.log('[seed-init] script loaded');
+    const pre = document.querySelector('#log pre');
+    if (pre) { pre.textContent += '[init] Front carregado.\n'; }
+  } catch(e){ /* ignore */ }
 
-        <h2 class="mt20">Login (LDAP)</h2>
-        <div class="grid">
-          <div>
-            <label>Usuário</label>
-            <input id="username" placeholder="seu.usuario" />
-          </div>
-          <div>
-            <label>Senha</label>
-            <input id="password" type="password" placeholder="••••••••" />
-          </div>
-        </div>
-        <div class="inline mt12">
-          <button class="btn primary" id="btnLogin">Entrar</button>
-          <span id="authStatus" class="status"></span>
-        </div>
-        <div class="mt12 tokenBox hidden" id="tokenWrap">
-          <strong>JWT:</strong> <span id="tokenText"></span>
-        </div>
-        <div class="mt8 inline">
-          <span class="pill">⚠️ Dica de segurança: este demo usa <em>sessionStorage</em> para guardar o token. Em produção, prefira armazenar em memória e renovar com refresh tokens/rotas dedicadas.</span>
-        </div>
-      </div>
-    </section>
 
-    <!-- Coluna direita: chamadas protegidas e resultados -->
-    <section class="card">
-      <div class="body">
-        <h2>Chamadas</h2>
-        <div class="inline">
-          <button class="btn" id="btnSectors">GET /automation/sectors</button>
-          <button class="btn" id="btnAutomations">GET /automation/automations</button>
-          <button class="btn" id="btnRuns">GET /automation/runs</button>
-        </div>
-
-        <div class="row mt12">
-          <div>
-            <label>automationId para executar</label>
-            <input id="automationId" placeholder="ex.: my_automation_id" />
-          </div>
-          <div class="inline" style="align-items:flex-end;">
-            <button class="btn" id="btnRun">POST /automation/automations/:id/run</button>
-          </div>
-        </div>
-
-        <div class="mt16">
-          <table class="table" id="tbl"></table>
-        </div>
-
-        <h2 class="mt16">Log</h2>
-        <div class="log" id="log"><pre></pre></div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <span>Feito para testes rápidos de autenticação JWT e rotas protegidas. Ajuste a BASE_URL e rode.</span>
-  </footer>
-
-  <script>
     const $ = (sel) => document.querySelector(sel);
     const logBox = $('#log pre');
     const tbl = $('#tbl');
@@ -149,6 +170,7 @@
         tokenWrap.classList.remove('hidden');
         tokenText.textContent = tkn;
         setStatus('Autenticado', 'ok');
+        loadDepartmentsIntoSelect().catch(()=>{});
       } else {
         sessionStorage.removeItem('jwt');
         tokenWrap.classList.add('hidden');
@@ -214,7 +236,7 @@
 
     $('#btnSectors').addEventListener('click', async () => {
       try {
-        const rows = await call('GET', '/automation/sectors', null, false); // rota pública
+        const rows = await call('GET', '/automation/departments', null, false); // rota pública
         renderTable(rows, ['id','name']);
       } catch(e){ alert(e.message); }
     });
@@ -245,6 +267,75 @@
       } catch(e){ alert(e.message); }
     });
 
+    
+    // ===== Dropdowns de Setores e Automações =====
+    async function loadDepartmentsIntoSelect() {
+      try {
+        const depts = await call('GET', '/automation/departments', null, false);
+        const sel = $('#selDepartment');
+        sel.innerHTML = '<option value="">— selecione —</option>';
+        (depts || []).forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.id ?? d.department_id ?? d.slug ?? d.name; // tenta várias chaves
+          opt.textContent = d.name ?? d.nome ?? String(opt.value);
+          sel.appendChild(opt);
+        });
+        if (!depts || !depts.length) alert('Nenhum setor retornado.');
+      } catch (e) {
+        alert('Falha ao carregar setores: ' + e.message);
+      }
+    }
+
+    async function loadAutomationsForSelectedDepartment() {
+      const dep = $('#selDepartment').value.trim();
+      if (!dep) { alert('Selecione um setor primeiro.'); return; }
+      try {
+        const rows = await call('GET', `/automation/automations/${encodeURIComponent(dep)}`);
+        // preencher select de automações (se existir id/nome)
+        const selA = $('#selAutomation');
+        selA.innerHTML = '<option value="">— selecione —</option>';
+        (rows || []).forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.id ?? a.automation_id ?? a.name;
+          const label = a.name ?? a.description ?? ('Automation ' + String(opt.value));
+          opt.textContent = label;
+          selA.appendChild(opt);
+        });
+        // render também em tabela para visualizar tudo
+        const cols = Array.isArray(rows) && rows.length ? Object.keys(rows[0]) : ['id','name','description'];
+        renderTable(rows, cols);
+      } catch (e) {
+        alert('Falha ao carregar automações do setor: ' + e.message);
+      }
+    }
+
+    // Botões dos dropdowns
+    $('#btnLoadDepartments').addEventListener('click', loadDepartmentsIntoSelect);
+    $('#btnShowAutomation').addEventListener('click', loadAutomationsForSelectedDepartment);
+
+    // Quando trocar o setor, já buscar as automações desse setor
+    $('#selDepartment').addEventListener('change', async () => {
+      if ($('#selDepartment').value) {
+        await loadAutomationsForSelectedDepartment();
+      } else {
+        $('#selAutomation').innerHTML = '<option value="">— selecione um setor primeiro —</option>';
+      }
+    });
+
+    // Quando trocar a automação, mostra (filtra) a linha da automação selecionada (se possível)
+    $('#selAutomation').addEventListener('change', () => {
+      const tbl = $('#tbl');
+      const selected = $('#selAutomation').value;
+      if (!selected) return;
+      // simples: esconder linhas cujo id (primeira coluna) não bate
+      const rows = tbl.querySelectorAll('tbody tr');
+      rows.forEach(tr => {
+        const firstCell = tr.querySelector('td');
+        tr.style.display = (!firstCell || firstCell.textContent == selected || firstCell.textContent == String(selected)) ? '' : 'none';
+      });
+    });
+
+
     function renderTable(rows, cols){
       if (!Array.isArray(rows)) rows = [rows];
       tbl.innerHTML = '';
@@ -267,6 +358,9 @@
       });
       tbl.appendChild(thead); tbl.appendChild(tbody);
     }
-  </script>
+  
+
+});
+</script>
 </body>
 </html>
