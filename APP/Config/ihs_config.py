@@ -86,7 +86,7 @@ def _ensure_driver(pasta_downlod=r"\\172.17.67.14\findev$\Automação - CNH\Baix
             try:
                 _driver.title  # chamada simples para validar sessão
             except WebDriverException:
-                _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome()
+                _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome(pasta_downlod)
     return (_driver, wdw, PASTA_DOWNLOADS)
 
 def connection():

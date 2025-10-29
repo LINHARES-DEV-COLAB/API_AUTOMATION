@@ -4,7 +4,7 @@ import sqlite3
 
 def setup_complete_database():
     # Caminho da rede
-    network_path = r"T:\Desenvolvedores\_db"
+    network_path = r"\\fileserver\tic\Desenvolvedores\_db"
     db_path = os.path.join(network_path, "automation_api.db")
     
     print(f"🔧 Configurando banco completo em: {db_path}")

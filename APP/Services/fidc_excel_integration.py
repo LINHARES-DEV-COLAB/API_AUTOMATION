@@ -1,8 +1,8 @@
 # ExcelIntegration.py
 import pandas as pd
 from pathlib import Path
-from APP.DTO.FIDC_DTO import LoginDTO
-from APP.Config.fidc_site_estrutura import Paths as config
+from DTO.FIDC_DTO import LoginDTO
+from Config.fidc_site_estrutura import Paths as config
 from dataclasses import dataclass
 from pathlib import Path
 import pandas as pd

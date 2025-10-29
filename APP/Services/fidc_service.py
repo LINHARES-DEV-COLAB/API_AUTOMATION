@@ -23,7 +23,7 @@ def run():
         sleep(2)  # Aguarda menu abrir
         
         print("=== FASE 1: DIAGNÓSTICO ===")
-        bot.clica_no_modulo_fidc(text_hint="FloorPlan")
+        bot.clica_no_modulo_fidc(text_hint="Módulo FIDC")
 
         bot.clica_em_aberto()
         

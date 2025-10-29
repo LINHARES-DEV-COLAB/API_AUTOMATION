@@ -1,6 +1,7 @@
 from http import HTTPStatus
-from flask import current_app, request
+from flask import current_app, request, session
 from flask_restx import Namespace, Resource, fields
+from numpy import append
 from APP.Models.run_model import Run
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_  
@@ -42,14 +43,14 @@ run_model = auto_ns.model("Run", {
     "output":       fields.Raw(description="Saída da automação"),
 })
 automation_list_item = auto_ns.model("AutomationListItem", {
-    "id":          fields.String,
-    "name":        fields.String,
+    "id": fields.String,
+    "name": fields.String,
     "description": fields.String,
-    "type":        fields.String,
-    "is_active":   fields.Boolean,
+    "type": fields.String,
+    "is_active": fields.Boolean,
     "department_id": fields.String,
-    "created_by":  fields.String,
-    "updated_at":  fields.String,
+    "created_by": fields.String,
+    "updated_at": fields.String,  # No seu model é updated_at (DateTime)
 })
 automation_list_response = auto_ns.model("AutomationListResponse", {
     "items": fields.List(fields.Nested(automation_list_item)),
@@ -59,96 +60,80 @@ automation_list_response = auto_ns.model("AutomationListResponse", {
 })
 
 # ===== /automation/sectors =====
-@auto_ns.route("/sectors")
+@auto_ns.route("/departments")
 class Sectors(ProtectedResource):
     @auto_ns.marshal_list_with(sector_model, code=HTTPStatus.OK)
     def get(self):
         try:
-            rows = Sector.query.order_by(Sector.name.asc()).all()
-            return [{"id": s.id, "name": s.name} for s in rows], HTTPStatus.OK
+            sectors = (
+                Sector.query
+                .execution_options(populate_existing=True)
+                .all()
+            )
+            current_app.logger.info("[DEPARTMENTS] %d registros retornados", len(sectors))
+            return sectors, HTTPStatus.OK
+
         except Exception as e:
-            current_app.logger.exception("Falha em GET /automation/sectors: %s", e)
+            current_app.logger.exception("[DEPARTMENTS] Erro ao listar: %s", e)
+            # GET normalmente não altera estado, mas se algo abriu transação, garante rollback
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             return {"message": "internal_error"}, HTTPStatus.INTERNAL_SERVER_ERROR
 
 # ===== /automation/automations =====
-@auto_ns.route("/automations")
+@auto_ns.route("/automations/<string:department_id>")
 class Automations(ProtectedResource):
-    @auto_ns.marshal_with(automation_list_response, code=HTTPStatus.OK)
-    @auto_ns.response(401, "Unauthorized")
-    @auto_ns.response(500, "Internal Server Error")
-    def get(self):
-        """
-        Lista automações com filtros:
-          - departmentId: str
-          - type: 'manual' | 'scheduled' | 'triggered'
-          - isActive: '0' ou '1'
-          - q: busca textual (name/description)
-          - page, pageSize: paginação
-        """
+    @auto_ns.response(HTTPStatus.OK, 'Success', automation_list_response)
+    def get(self, department_id: str):
         try:
-            # --- filtros ---
-            dept_id  = request.args.get("departmentId")
-            type_    = request.args.get("type")  # 'manual'|'scheduled'|'triggered'
-            is_active_param = request.args.get("isActive")  # '0' ou '1'
-            q        = (request.args.get("q") or "").strip()
-
-            # --- paginação ---
-            try:
-                page = max(int(request.args.get("page", 1)), 1)
-            except ValueError:
-                page = 1
-            try:
-                page_size = min(max(int(request.args.get("pageSize", 20)), 1), 200)
-            except ValueError:
-                page_size = 20
-            offset = (page - 1) * page_size
-
-            query = Automation.query
-
-            if dept_id:
-                query = query.filter(Automation.department_id == dept_id)
-            if type_:
-                query = query.filter(Automation.type == type_)
-            if is_active_param in ("0", "1"):
-                query = query.filter(Automation.is_active == (is_active_param == "1"))
-            if q:
-                like = f"%{q}%"
-                query = query.filter(or_(Automation.name.ilike(like),
-                                         Automation.description.ilike(like)))
-
-            total = query.count()
-            rows = (query.order_by(Automation.name.asc())
-                         .offset(offset)
-                         .limit(page_size)
-                         .all())
-
-            def to_item(a: Automation):
-                return {
-                    "id": a.id,
-                    "name": a.name,
-                    "description": a.description or "",
-                    "type": a.type,
-                    "is_active": bool(a.is_active),
-                    "department_id": a.department_id,
-                    "created_by": a.created_by,
-                    "updated_at": a.updated_at.isoformat() if getattr(a, "updated_at", None) else None,
-                }
-
-            return {
-                "items":    [to_item(a) for a in rows],
-                "page":     page,
-                "pageSize": page_size,
-                "total":    total
-            }, HTTPStatus.OK
-
+            automations = (
+                Automation.query
+                .filter(Automation.department_id == department_id)  # ✅ CORRIGIDO
+                .execution_options(populate_existing=True)
+                .all()
+            )
+            
+            current_app.logger.info(
+                "[AUTOMATIONS] %d registros retornados para department_id=%s",
+                len(automations),
+                department_id
+            )
+            
+ 
+            items = []
+            for automation in automations:
+                if automation.is_active:
+                    items.append({
+                    "name": automation.name,
+                    })
+            
+            response = {
+                "items": items,
+                "page": 1,
+                "pageSize": len(items),
+                "total": len(items)
+            }
+            
+            return response, HTTPStatus.OK
+            
         except SQLAlchemyError as e:
-            current_app.logger.exception("DB error em GET /automation/automations: %s", e)
+            db.session.rollback()
+            current_app.logger.exception(
+                "[AUTOMATIONS] Erro de banco em GET /automations/%s: %s",
+                department_id,
+                e
+            )
             auto_ns.abort(500, "Internal Server Error")
         except Exception as e:
-            current_app.logger.exception("Erro em GET /automation/automations: %s", e)
+            current_app.logger.exception(
+                "[AUTOMATIONS] Erro inesperado em GET /automations/%s: %s",
+                department_id,
+                e
+            )
             auto_ns.abort(500, "Internal Server Error")
 
-# ===== /automation/automations/<id>/run =====
 @auto_ns.route("/automations/<string:automation_id>/run")
 class RunAutomation(ProtectedResource):
     @auto_ns.marshal_with(run_model, code=HTTPStatus.ACCEPTED)
@@ -205,5 +190,9 @@ class RunStatus(ProtectedResource):
 # ===== /automation/ (ping) =====
 @auto_ns.route("/")
 class AutomationRoot(ProtectedResource):
+    @auto_ns.marshal_list_with(automation_model, code=HTTPStatus.OK)
     def get(self):
-        return {"ok": True}, HTTPStatus.OK
+        items = Automation.query.limit(5).all()
+        current_app.logger.info("[AUTOMATIONS] Amostra sem filtro: %s", [a.id for a in items])
+        # ✅ retorne a própria lista de modelos; o marshal serializa
+        return items, HTTPStatus.OK
