@@ -335,123 +335,155 @@ class SeleniumIntegration:
 
     # ---------- Fluxos ----------
     def login(self, dto: LoginDTO, url: Optional[str] = None, timeout: Optional[int] = None) -> None:
-        """Login resiliente com suporte a URL (parâmetro > dto.url > dto.site_url > Paths.Url.url)."""
         if self.driver is None:
             self.start()
         d = self.driver
         assert d is not None, "Driver não inicializado"
         to = timeout or self.timeout
 
-        # 1) Resolve URL
-        target_url = (url or getattr(dto, "url", None) or getattr(dto, "site_url", None))
+        # 1) Acessa a URL
+        target_url = url or "https://web.accesstage.com.br/santander-montadoras-ui/#/login"
+        print(f"🌐 Acessando: {target_url}")
+        
         try:
-            if not target_url and hasattr(Paths, "Url") and hasattr(Paths.Url, "url"):
-                target_url = Paths.Url.url  # type: ignore
-        except Exception:
-            pass
+            d.get(target_url)
+            sleep(2)
+            print(f"✅ Página carregada: {d.current_url}")
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar página: {e}")
 
-        if target_url:
-            try:
-                print(f"🌐 Acessando: {target_url}")
-                d.get(str(target_url))
-                # Aguarda um pouco mais para carregamento completo
-                WebDriverWait(d, 60).until(lambda drv: drv.execute_script("return document.readyState") == "complete")
-                print("✅ Página carregada com sucesso")
-            except TimeoutException:
-                print("⚠️  Página demorou para carregar, mas continuando...")
-            except Exception as e:
-                print(f"⚠️  Erro ao carregar página: {e}, continuando...")
-
-    # ... resto do código do login permanece igual ...
-
-        # 2) Candidatos (Paths se existir + fallbacks comuns)
-        user_sel: List[Tuple[str, str]] = []
-        pass_sel: List[Tuple[str, str]] = []
-        submit_sel: List[Tuple[str, str]] = []
-        try:
-            if hasattr(Paths, "Login") and hasattr(Paths.Login, "username"):
-                user_sel.append((By.XPATH, Paths.Login.username))  # type: ignore
-            if hasattr(Paths, "Login") and hasattr(Paths.Login, "password"):
-                pass_sel.append((By.XPATH, Paths.Login.password))  # type: ignore
-            if hasattr(Paths, "Login") and hasattr(Paths.Login, "submit"):
-                submit_sel.append((By.XPATH, Paths.Login.submit))  # type: ignore
-        except Exception:
-            pass
-
-        user_sel += [
+        # 2) PROCURA CAMPOS DE LOGIN - Estratégia mais agressiva
+        print("🔍 Procurando campos de login...")
+        
+        # Estratégia: primeiro encontra os campos, depois preenche
+        usuario_field = None
+        senha_field = None
+        login_button = None
+        
+        # Lista de seletores para usuário
+        user_selectors = [
+            (By.CSS_SELECTOR, "input[type='text']"),
             (By.CSS_SELECTOR, "input[formcontrolname='username']"),
             (By.CSS_SELECTOR, "input[name='username']"),
-            (By.CSS_SELECTOR, "input[type='email']"),
-            (By.CSS_SELECTOR, "input[type='text']"),
-            (By.XPATH, "//input[contains(@id,'mat-input') and not(@type='password')]"),
+            (By.XPATH, "//input[@type='text']"),
         ]
-        pass_sel += [
+        
+        # Lista de seletores para senha
+        pass_selectors = [
+            (By.CSS_SELECTOR, "input[type='password']"),
             (By.CSS_SELECTOR, "input[formcontrolname='password']"),
             (By.CSS_SELECTOR, "input[name='password']"),
-            (By.CSS_SELECTOR, "input[type='password']"),
-            (By.XPATH, "//input[contains(@id,'mat-input') and @type='password']"),
+            (By.XPATH, "//input[@type='password']"),
         ]
-        submit_sel += [
+        
+        # Lista de seletores para botão
+        button_selectors = [
             (By.CSS_SELECTOR, "button[type='submit']"),
-            (By.XPATH, "//button[.//span[contains(translate(.,'ENTRARLOGIN','entrarlogin'),'entrar')] or contains(., 'Login')]"),
-            (By.XPATH, "//button[contains(., 'Entrar') or contains(., 'Acessar') or contains(., 'Login')]"),
+            (By.XPATH, "//button[contains(., 'Entrar')]"),
+            (By.XPATH, "//button[contains(., 'Login')]"),
+            (By.XPATH, "//button[contains(., 'Acessar')]"),
         ]
-
-        def _first_present(locs: List[Tuple[str, str]]) -> Optional[WebElement]:
-            for by, sel in locs:
-                try:
-                    return WebDriverWait(d, max(4, to//3)).until(EC.presence_of_element_located((by, sel)))
-                except Exception:
-                    continue
-            return None
-
-        user_el = _first_present(user_sel)
-        pass_el = _first_present(pass_sel)
-
-        if user_el:
-            try: user_el.clear()
-            except Exception: pass
-            user_el.send_keys(getattr(dto, "usuario", None) or getattr(dto, "email", None) or "")
-
-        if pass_el:
-            try: pass_el.clear()
-            except Exception: pass
-            pass_el.send_keys(getattr(dto, "senha", None) or getattr(dto, "password", None) or "")
-
-        btn = _first_present(submit_sel)
-        if btn:
+        
+        # Procura campo de usuário
+        for by, selector in user_selectors:
             try:
-                # usa o clique seguro via locator calculado (para manter iFrame aware)
-                self._safe_click([(By.XPATH, ".//self::button")], timeout=max(8, to//2))  # best effort
-            except Exception:
-                try: btn.submit()
-                except Exception: pass
-        elif pass_el:
-            try: pass_el.send_keys(Keys.ENTER)
-            except Exception: pass
-
-        # Espera pós-login (melhor esforço)
-        try:
-            WebDriverWait(d, max(6, to)).until_not(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
-        except Exception:
-            pass
+                elements = d.find_elements(by, selector)
+                for el in elements:
+                    if el.is_displayed() and el.is_enabled():
+                        usuario_field = el
+                        print(f"✅ Campo usuário encontrado: {selector}")
+                        break
+                if usuario_field:
+                    break
+            except:
+                continue
+        
+        # Procura campo de senha
+        for by, selector in pass_selectors:
+            try:
+                elements = d.find_elements(by, selector)
+                for el in elements:
+                    if el.is_displayed() and el.is_enabled():
+                        senha_field = el
+                        print(f"✅ Campo senha encontrado: {selector}")
+                        break
+                if senha_field:
+                    break
+            except:
+                continue
+        
+        # Procura botão de login
+        for by, selector in button_selectors:
+            try:
+                elements = d.find_elements(by, selector)
+                for el in elements:
+                    if el.is_displayed() and el.is_enabled():
+                        login_button = el
+                        print(f"✅ Botão login encontrado: {selector} - '{el.text}'")
+                        break
+                if login_button:
+                    break
+            except:
+                continue
+        
+        # 3) PREENCHE E FAZ LOGIN
+        if usuario_field and senha_field:
+            print("📝 Preenchendo credenciais...")
+            
+            try:
+                # Limpa e preenche usuário
+                usuario_field.clear()
+                usuario_field.send_keys(getattr(dto, "usuario", "") or "42549981391")
+                print("✅ Usuário preenchido")
+                
+                # Limpa e preenche senha
+                senha_field.clear()
+                senha_field.send_keys(getattr(dto, "senha", "") or "cariri1627")
+                print("✅ Senha preenchida")
+                
+                # Clica no botão de login
+                if login_button:
+                    login_button.click()
+                    print("✅ Botão de login clicado")
+                else:
+                    # Fallback: Enter na senha
+                    senha_field.send_keys(Keys.ENTER)
+                    print("✅ Enter pressionado na senha")
+                
+                # Aguarda login
+                sleep(5)
+                print(f"🔗 Pós-login - URL: {d.current_url}")
+                
+                # Verifica se login foi bem sucedido
+                if "login" not in d.current_url.lower() and "dashboard" in d.current_url.lower():
+                    print("🎉 LOGIN REALIZADO COM SUCESSO!")
+                else:
+                    print("⚠️  Possível falha no login")
+                    
+            except Exception as e:
+                print(f"❌ Erro ao preencher login: {e}")
+        else:
+            print("❌ Campos de login não encontrados")
+            if not usuario_field:
+                print("   - Campo de usuário não encontrado")
+            if not senha_field:
+                print("   - Campo de senha não encontrado")
 
     ##################################################################################################################    
 
-    def clica_no_modulo_fidc(self, locators: Optional[Locator] = None, text_hint: Optional[str] = "FloorPlan") -> None:
+    def clica_no_modulo_fidc(self, locators: Optional[Locator] = None, text_hint: Optional[str] = "FIDC") -> None:
         d = self.driver
         assert d is not None, "Driver não inicializado"
         
         sleep(2)
         
-        print("🔍 Procurando elemento FloorPlan específico...")
+        print("🔍 Procurando elemento FIDC específico...")
         
-        # Seletores específicos baseados no debug
+        # Seletores específicos para Módulo FIDC
         cand = [
-            # Elemento específico do dropdown do FloorPlan
-            (By.XPATH, "//a[@class='nav-link nav-dropdown-toggle' and contains(., 'FloorPlan')]"),
-            (By.XPATH, "//app-sidebar-nav-dropdown[contains(., 'FloorPlan')]//a"),
-            (By.CSS_SELECTOR, "a.nav-link.nav-dropdown-toggle"),
+            (By.XPATH, "//a[@class='nav-link nav-dropdown-toggle' and contains(., 'FIDC')]"),
+            (By.XPATH, "//app-sidebar-nav-dropdown[contains(., 'FIDC')]//a"),
+            (By.XPATH, "//a[contains(., 'Módulo FIDC')]"),
         ]
 
         elemento_encontrado = None
@@ -461,29 +493,31 @@ class SeleniumIntegration:
                     EC.presence_of_all_elements_located((by, selector))
                 )
                 for el in elements:
-                    if "FloorPlan" in el.text and el.is_displayed() and el.is_enabled():
+                    if "FIDC" in el.text and el.is_displayed() and el.is_enabled():
                         elemento_encontrado = el
                         print(f"✅ Elemento específico encontrado: {el.text}")
-                        print(f"   Classe: {el.get_attribute('class')}")
                         break
                 if elemento_encontrado:
                     break
-            except Exception as e:
+            except Exception:
                 continue
 
         if not elemento_encontrado:
-            raise TimeoutException("Não consegui encontrar o módulo FloorPlan específico")
+            raise TimeoutException("Não consegui encontrar o módulo FIDC")
 
-        # Tenta abrir o dropdown
+        # Abre o dropdown do FIDC
         try:
-            print("🔄 Abrindo dropdown do FloorPlan...")
+            print("🔄 Abrindo dropdown do FIDC...")
             d.execute_script("arguments[0].click();", elemento_encontrado)
-            sleep(2)  # Aguarda o dropdown abrir
+            sleep(2)  # Aguarda o dropdown abrir completamente
             
-            # Verifica se o dropdown abriu (muda o estado)
-            aria_expanded = elemento_encontrado.get_attribute('aria-expanded')
-            print(f"   Estado do dropdown: aria-expanded='{aria_expanded}'")
-            
+            # Verifica se abriu procurando pelos itens do dropdown
+            dropdown_items = d.find_elements(By.XPATH, "//app-sidebar-nav-dropdown[contains(., 'FIDC')]//a[contains(., 'Em Aberto')]")
+            if dropdown_items:
+                print("✅ Dropdown do FIDC aberto com sucesso! 'Em Aberto' está visível.")
+            else:
+                print("⚠️  Dropdown pode não ter aberto completamente")
+                
         except Exception as e:
             print(f"⚠️  Erro ao abrir dropdown: {e}")
             raise
@@ -491,16 +525,15 @@ class SeleniumIntegration:
 
 
     def clica_em_aberto(self) -> None:
-        """Entra na tela 'Em Aberto' - versão corrigida"""
+        """Entra na tela 'Em Aberto' - versão para FIDC"""
         d = self.driver
         assert d is not None, "Driver não inicializado"
         
-        print("🔍 Procurando 'Em Aberto' no dropdown aberto...")
+        print("🔍 Procurando 'Em Aberto' no dropdown do FIDC...")
         
-        # Agora sabemos exatamente onde está: dentro do dropdown do FloorPlan
+        # Seletores específicos para o dropdown do FIDC
         selectors = [
-            # Seletor específico baseado no debug
-            "//app-sidebar-nav-dropdown[contains(., 'FloorPlan')]//a[contains(., 'Em Aberto')]",
+            "//app-sidebar-nav-dropdown[contains(., 'FIDC')]//a[contains(., 'Em Aberto')]",
             "//app-sidebar-nav-items//a[contains(., 'Em Aberto')]",
             "//a[contains(., 'Em Aberto') and contains(@class, 'nav-link')]",
         ]
@@ -521,8 +554,8 @@ class SeleniumIntegration:
                 current_url = d.current_url
                 print(f"🔗 Navegado para: {current_url}")
                 
-                if "aberto" in current_url.lower():
-                    print("✅ Navegação para 'Em Aberto' confirmada!")
+                if "aberto" in current_url.lower() or "fidc" in current_url.lower():
+                    print("✅ Navegação para 'Em Aberto' do FIDC confirmada!")
                 else:
                     print("ℹ️  Navegou para outra página")
                     
@@ -530,73 +563,89 @@ class SeleniumIntegration:
             except Exception as e:
                 print(f"❌ Não encontrado com: {selector} - {e}")
         
-        print("❌ Não foi possível encontrar 'Em Aberto'")
-        raise TimeoutException("'Em Aberto' não encontrado após abrir dropdown")
+        print("❌ Não foi possível encontrar 'Em Aberto' no FIDC")
+        raise TimeoutException("'Em Aberto' não encontrado após abrir dropdown do FIDC")
     # ---------- Autocomplete Angular Material ----------
+    # No arquivo selenium_integration.py, atualize a função insere_revenda:
+
     def insere_revenda(self, termo: str, texto_completo: Optional[str] = None, prefix_len: int = 6) -> None:
-        """Interage com mat-autocomplete 'Revenda' se Paths existir; senão é no-op amigável."""
+        """Interage com campo de revenda - versão corrigida"""
         d = self.driver
         assert d is not None, "Driver não inicializado"
         to = self.timeout
+        
+        print(f"📝 Tentando inserir revenda: {termo}")
+        
+        # Primeiro tenta pelo Paths se existir
         try:
-            campo = self._find_with_fallbacks(Paths.Inputs.input_revenda, timeout=max(8, to//2), need_clickable=False)  # type: ignore
+            campo = self._find_with_fallbacks(Paths.Inputs.input_revenda, timeout=max(8, to//2), need_clickable=False)
+            print("✅ Campo de revenda encontrado via Paths")
         except Exception:
-            return  # sem Paths, não tenta adivinhar
-
-        base = (texto_completo or termo).strip()
-        prefixo = base[:max(1, prefix_len)]
-        if prefixo:
-            campo.send_keys(prefixo)
-
-        panel_id = campo.get_attribute("aria-controls")
-        if panel_id:
-            panel = WebDriverWait(d, to).until(EC.visibility_of_element_located((By.ID, panel_id)))
-        else:
-            WebDriverWait(d, to).until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".mat-autocomplete-panel.mat-autocomplete-visible")))
-            panels = d.find_elements(By.CSS_SELECTOR, ".mat-autocomplete-panel.mat-autocomplete-visible")
-            if not panels:
-                raise TimeoutError("Autocomplete não abriu.")
-            panel = panels[-1]
-
-        options = panel.find_elements(By.CSS_SELECTOR, "mat-option")
-        candidatos: List[tuple[str, WebElement]] = []
-        for opt in options:
-            txt = (opt.text or "").strip()
-            if not txt or txt.lower() == "revenda":
-                continue
-            candidatos.append((txt, opt))
-        if not candidatos:
-            raise TimeoutError("Nenhuma opção de revenda encontrada.")
-
-        alvo_txt, alvo_el = None, None
-        if texto_completo:
-            for txt, el in candidatos:
-                if txt.strip() == texto_completo.strip():
-                    alvo_txt, alvo_el = txt, el
-                    break
-        if alvo_el is None:
-            term = termo.strip().lower()
-            for txt, el in candidatos:
-                if term and term in txt.lower():
-                    alvo_txt, alvo_el = txt, el
-                    break
-        if alvo_el is None:
-            alvo_txt, alvo_el = candidatos[0]
-
+            print("❌ Campo não encontrado via Paths, tentando seletores alternativos...")
+            # Seletores alternativos baseados em debug
+            selectors_alternativos = [
+                (By.XPATH, "//input[contains(@placeholder, 'revenda') or contains(@placeholder, 'Revenda')]"),
+                (By.XPATH, "//input[@formcontrolname]"),
+                (By.XPATH, "//input[@type='text' and @placeholder]"),
+                (By.CSS_SELECTOR, "input[type='text']"),
+            ]
+            
+            campo = None
+            for by, selector in selectors_alternativos:
+                try:
+                    campo = WebDriverWait(d, 5).until(
+                        EC.presence_of_element_located((by, selector))
+                    )
+                    if campo.is_displayed() and campo.is_enabled():
+                        print(f"✅ Campo encontrado com: {selector}")
+                        break
+                    else:
+                        campo = None
+                except:
+                    continue
+            
+            if not campo:
+                print("❌ Nenhum campo de revenda encontrado")
+                return
+        
+        # Limpa o campo
         try:
-            d.execute_script("arguments[0].scrollIntoView({block:'center',inline:'nearest'});", alvo_el)
-        except Exception:
+            campo.clear()
+            sleep(0.5)
+        except:
             pass
+        
+        # Insere o termo
         try:
-            alvo_el.click()
-        except Exception:
-            d.execute_script("arguments[0].click();", alvo_el)
-
-        WebDriverWait(d, to).until(
-            lambda _:
-                (campo.get_attribute("value") and termo[:3].lower() in (campo.get_attribute("value") or "").lower())
-                or (texto_completo and (campo.get_attribute("value") == texto_completo))
-        )
+            base = (texto_completo or termo).strip()
+            prefixo = base[:max(1, prefix_len)]
+            
+            print(f"   Inserindo: '{prefixo}'")
+            campo.send_keys(prefixo)
+            sleep(2)  # Aguarda autocomplete
+            
+            # Verifica se o texto foi inserido
+            valor_inserido = campo.get_attribute('value')
+            print(f"   Texto no campo: '{valor_inserido}'")
+            
+            # Tenta abrir o autocomplete se for um campo com dropdown
+            if valor_inserido:
+                campo.send_keys(Keys.ARROW_DOWN)
+                sleep(1)
+                
+                # Procura por opções do autocomplete
+                try:
+                    opcoes = d.find_elements(By.CSS_SELECTOR, ".mat-option, .mat-autocomplete-visible")
+                    if opcoes:
+                        print(f"   📋 {len(opcoes)} opções encontradas no autocomplete")
+                        # Seleciona a primeira opção
+                        opcoes[0].click()
+                        print("   ✅ Primeira opção selecionada")
+                except:
+                    print("   ℹ️  Nenhuma opção de autocomplete encontrada")
+                    
+        except Exception as e:
+            print(f"❌ Erro ao inserir revenda: {e}")
 
     def clica_em_pesquisa(self) -> None:
         """Clica no botão Pesquisar (se Paths existir), com fallback brando."""
@@ -707,10 +756,15 @@ class SeleniumIntegration:
         return False
 
     # ---------- Busca/Marca NF ----------
+# No arquivo selenium_integration.py, ATUALIZE a função:
+
     def _buscar_nota_na_pagina(self, nf: str) -> Optional[WebElement]:
         d = self.driver
         assert d is not None, "Driver não inicializado"
-        xpath_row = f"//table//tbody//tr[.//td[normalize-space(.)='{nf}']]"
+        
+        # ⭐⭐ CORREÇÃO: Procura a NF em QUALQUER lugar da linha, não só em uma coluna específica
+        xpath_row = f"//table//tbody//tr[contains(., '{nf}')]"
+        
         try:
             return WebDriverWait(d, max(4, self.timeout//3)).until(
                 EC.presence_of_element_located((By.XPATH, xpath_row))
