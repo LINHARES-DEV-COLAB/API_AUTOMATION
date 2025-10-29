@@ -14,7 +14,7 @@ fidc_response_model = fidc_ns.model('FIDCResponse', {
     'message': fields.String(description='Mensagem detalhada')
 })
 
-@fidc_ns.route('/fidc')
+@fidc_ns.route('/')
 class FIDCController(ProtectedResource):
     @fidc_ns.marshal_with(fidc_response_model)
     def get(self):

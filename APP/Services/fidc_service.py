@@ -1,59 +1,101 @@
-from APP.Services.fidc_selenium_integration import SeleniumIntegration
+from APP.Core.fidc_selenium_integration import SeleniumIntegration
 from APP.DTO.FIDC_DTO import LoginDTO
-from APP.Services.fidc_excel_integration import mapear_emps_para_nfs
-from APP.Config.fidc_trata_emp import trataEmp
+from APP.Core.fidc_excel_integration import mapear_emps_para_nfs
 from time import sleep
-
-XLSX = r"C:\Users\sousa.lima\Documents\Projetos\EmissaoBoletoFIDC\app\data\FIDC CAP DIARIO.xlsx"
-SHEET = "FIDC Contas a pagar."
+from APP.Core.fidc_logic import fazer_pesquisa_com_autocomplete, processar_nfs_inteligente
 
 def run():
-    # 1) mapa EMP -> [NFs...]
+    # Carregar dados do Excel
+    XLSX = r"C:\Users\sousa.lima\Documents\Projetos\ApiAutomation\API_AUTOMATION\APP\Data\FIDC CAP DIARIO.xlsx"
+    SHEET = "FIDC Contas a pagar."
+    
+    print("📊 CARREGANDO DADOS DO EXCEL...")
     mapa = mapear_emps_para_nfs(XLSX, SHEET)
     
-    bot = SeleniumIntegration(timeout=25)
+    bot = SeleniumIntegration(timeout=40)
+    
     try:
-        url = "https://web.accesstage.com.br/santander-montadoras-ui/#/login"
-
+        # 1) Login
+        print("\n🔐 FAZENDO LOGIN...")
         bot.login(LoginDTO(
-            usuario="42549981391",
-            senha="cariri1627"), url=url
-        )
+            usuario="42549981391", 
+            senha="cariri1627"
+        ), url="https://web.accesstage.com.br/santander-montadoras-ui/#/login")
+        sleep(3)
         
-        sleep(2)  # Aguarda menu abrir
-        
-        print("=== FASE 1: DIAGNÓSTICO ===")
+        # 2) Navegação
+        print("📂 ACESSANDO MÓDULO FIDC...")
         bot.clica_no_modulo_fidc(text_hint="Módulo FIDC")
-
         bot.clica_em_aberto()
+        sleep(3)
         
-        relatorio = {}
-
-        for emp, nfs in mapa.items():
-            if emp != "TA" or not nfs:
-                continue
-
-            termo = trataEmp(emp)
-            bot.insere_revenda(termo=termo, texto_completo=None)
-            bot.clica_em_pesquisa()
-
-            resultados = bot.marcar_nfs_do_emp(nfs)  # {nf: True/False}
-            relatorio[emp] = resultados
-
-        ok_total = sum(sum(1 for v in r.values() if v) for r in relatorio.values())
-        falhas_total = sum(sum(1 for v in r.values() if not v) for r in relatorio.values())
-        print(f"Concluído. Marcados: {ok_total} | Não encontrados: {falhas_total}")
-
-        # Opcional: logar quais NFs não foram encontradas
-        for emp, r in relatorio.items():
-            faltantes = [nf for nf, ok in r.items() if not ok]
-            if faltantes:
-                print(f"[{emp}] NFs não encontradas: {', '.join(faltantes)}")
-
+        print(f"🔗 Página atual: {bot.driver.current_url}")
+        
+        # 3) IDENTIFICAR TABELA
+        print("\n🔍 CONFIGURANDO TABELA...")
+        print("   ✅ Usando tabela índice: 0 (Títulos Em Aberto)")
+        
+        emp = "TA"
+        if emp in mapa:
+            nfs_excel = mapa[emp]
+            print(f"\n🏢 EMPRESA: {emp}")
+            print(f"   📋 NFs do Excel: {nfs_excel}")
+            
+            # 4) FAZER PESQUISA
+            print("🔄 INICIANDO PESQUISA...")
+            resultado_pesquisa = fazer_pesquisa_com_autocomplete(bot)
+            if not resultado_pesquisa.get('sucesso'):
+                print(f"❌ Falha na pesquisa: {resultado_pesquisa.get('motivo')}")
+                return
+            
+            # 5) PROCESSAR NFs
+            nfs_marcadas, nfs_nao_encontradas, nfs_com_problema = processar_nfs_inteligente(bot, nfs_excel)
+            
+            # 6) RELATÓRIO FINAL
+            print(f"\n🎉 RELATÓRIO FINAL")
+            print("=" * 50)
+            print(f"📊 RESULTADOS:")
+            print(f"   • NFs do Excel: {len(nfs_excel)}")
+            print(f"   • NFs marcadas: {nfs_marcadas}")
+            print(f"   • NFs não encontradas: {len(nfs_nao_encontradas)}")
+            print(f"   • NFs com problema: {len(nfs_com_problema)}")
+            
+            if nfs_nao_encontradas:
+                print(f"\n📋 NFs NÃO ENCONTRADAS:")
+                for nf in nfs_nao_encontradas:
+                    print(f"   • {nf}")
+            
+            if nfs_com_problema:
+                print(f"\n⚠️  NFs COM PROBLEMA:")
+                for nf, motivo in nfs_com_problema:
+                    print(f"   • {nf} - {motivo}")
+            
+            eficiencia = (nfs_marcadas / len(nfs_excel)) * 100 if nfs_excel else 0
+            print(f"\n💡 EFICIÊNCIA: {eficiencia:.1f}%")
+            
+            if nfs_marcadas == len(nfs_excel):
+                print("   🎉 TODAS as NFs do Excel foram marcadas!")
+            elif nfs_marcadas > 0:
+                print(f"   ✅ {nfs_marcadas} NFs marcadas com sucesso")
+            else:
+                print("   ❌ Nenhuma NF do Excel foi encontrada")
+        
+        print(f"\n🎉 PROCESSO CONCLUÍDO!")
+        
+        print("\n🔍 Browser mantido aberto para verificação...")
+        input("⏸️  Pressione Enter para fechar...")
+        
     except Exception as e:
-        print(f"Erro ocorreu: {e}")
+        print(f"❌ ERRO: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        print("\n🔍 Browser mantido aberto para debug...")
+        input("⏸️  Pressione Enter para fechar...")
     finally:
-         bot.close()
+
+
+        bot.close()
 
 if __name__ == "__main__":
     run()

@@ -19,7 +19,7 @@ from APP.Controllers.fidc_controller import fidc_ns
 from APP.Controllers.automation_controller import auto_ns
 from APP.Config.supa_config import init_db, db
 from sqlalchemy import text
-
+import logging
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = BASE_DIR / "instance"             # <- define
@@ -126,7 +126,9 @@ def _configure_cors(app):
                 "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
                 "supports_credentials": True
             }
-        }
+        },
+        supports_credentials=False,
+        expose_headers=["Content-Type", "Authorization"]
     )
 
 def _register_routes(app):
