@@ -22,6 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import logging
 from datetime import datetime, timedelta
 from selenium.webdriver.support.ui import WebDriverWait
+import pyautogui
 
 ARQ = r'\\172.17.67.14\findev$\Automação - CNH\SENHAS IHS.xlsx'
 
@@ -501,10 +502,11 @@ def verificar_arquivos(pasta_downloads: str | os.PathLike, lojas: list[str]) -> 
         has_pdf  = pdf_path.exists()
         has_xlsx = xlsx_path.exists()
 
-        if not has_zip:
-            status["missing_zip"].add(loja_u)
-        elif has_zip and not has_txt:
-            status["need_extract_from_zip"].add(loja_u)
+        if not has_txt:
+            if not has_zip:
+                status["missing_zip"].add(loja_u)
+            elif has_zip and not has_txt:
+                status["need_extract_from_zip"].add(loja_u)
 
         if loja_u in CRITICAS_PDF_XLSX and (not has_pdf or not has_xlsx):
             status["missing_pdf_or_xlsx"].add(loja_u)
@@ -568,11 +570,15 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
             #             LOGIN
             # ===============================
             try:
+                driver.execute_script("document.body.style.zoom='75%'")
                 espera_personalizada(inicio_random=1,fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, path.Login.campo_code).clear()
                 driver.find_element(By.CSS_SELECTOR, path.Login.campo_code).send_keys(user.codigo)
                 espera_personalizada(inicio_random=1,fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, path.Login.campo_user).clear()
                 driver.find_element(By.CSS_SELECTOR, path.Login.campo_user).send_keys(user.usuario)
                 espera_personalizada(inicio_random=1,fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, path.Login.campo_password).clear()
                 driver.find_element(By.CSS_SELECTOR, path.Login.campo_password).send_keys(user.senha)
                 espera_personalizada(inicio_random=1,fim_random=3)
 
@@ -620,46 +626,43 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
 
                 espera_personalizada(inicio_random=1, fim_random=3)
                 clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'baixar informações')
-
-                # ===============================
-                #        ACESSO AO IFRAME
-                # ===============================
-                espera_personalizada(
-                    lambda: driver.switch_to.default_content(),
-                    lambda: driver.switch_to.frame(0),
-                    inicio_random=2,
-                    fim_random=4
-                )
             except Exception as e:
                 logging.error(f'Erro ao acessar o iframe.\nDescrição: {str(e)}\n{'-'*60}')
                 driver.get(path.Url.url)
                 continue
 
-            for i in range(1,11):
-                try:
-                    id_link, texto_span = pega_texto_elemento(driver, path.Frame.id_link_ccc, i)
-                except Exception as e:
-                    logging.error(f'Erro pegar o texto do link do CCC.\nDescrição: {str(e)}\n{'-'*60}')
-                    pular_loja = True
-                    break
-                
-                if texto_span.strip().upper() == 'CONTA CORRENTE CONCESSIONARIA CRG':
-                    driver.find_element(By.CSS_SELECTOR, f'{id_link} a').click()
+            pyautogui.PAUSE = 3
+
+            centro_CCC = pyautogui.locateCenterOnScreen(image='APP/static/img/arquivo_CNH.PNG')
+            pyautogui.click(*centro_CCC)  # Clica no arquivo CCC
+            
+            seleciona_uma_aba_do_navegador(driver, -1)
+            driver.maximize_window()
+
+            pyautogui.click(120, 267)  # Clica no OK
+
+            try:
+                texto = WebDriverWait(driver, timeout=10).until(
+                    EC.visibility_of_element_located((By.TAG_NAME, path.Frame.texto_interno))
+                )
+
+                with open((PASTA_DOWNLOADS / f"{user.nome_loja}.txt"), 'w', encoding='utf-8') as f:
+                    f.writelines(texto.text)
                     
-                    seleciona_uma_aba_do_navegador(driver, -1)
-                    driver.maximize_window()
+                driver.close()
+                seleciona_uma_aba_do_navegador(driver, 0)
+            except:
+                sleep(random.randint(2, 4))
+                driver.close()
+                seleciona_uma_aba_do_navegador(driver, 0)
 
-                    clicar_pelo_atributo(driver, 'value', 'ok', path.Frame.btn_baixar)
-
-                    sleep(random.randint(2, 4))
-                    driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0)
-                    driver.switch_to.frame(0)
-
+                sleep(random.randint(2, 4))
+                txt_existe = (PASTA_DOWNLOADS / f"{user.nome_loja}.txt").exists()
+                if not txt_existe:
                     try:
                         sleep(random.randint(2, 4))
                         troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
-                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ✅ verificar
+                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ? verificar
                     except Exception as e:
                         logging.error(f'Erro ao trocar o nome do arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
                         pular_loja = True
@@ -675,16 +678,14 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                         pular_loja = True
                         break
 
-                    try:
-                        sleep(random.randint(2, 4))
-                        troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")
-                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")  # ✅ verificar
-                    except Exception as e:
-                        logging.error(f'Erro ao trocar o nome do arquivo txt.\nDescrição: {str(e)}\n{'-'*60}')
-                        pular_loja = True
-                        break
-
-                    break
+            try:
+                sleep(random.randint(2, 4))
+                troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")
+                garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")  # ✅ verificar
+            except Exception as e:
+                logging.error(f'Erro ao trocar o nome do arquivo txt.\nDescrição: {str(e)}\n{'-'*60}')
+                pular_loja = True
+                break
                 
             if pular_loja:
                 driver.get(path.Url.url)
@@ -692,24 +693,19 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
 
             if user.nome_loja in ['JUAZEIRO', 'CRATO', 'NOVA_ONDA_ARACATI']:
                 try:
-                    driver.switch_to.default_content()
-                    clica_na_aba(wdw, path.MenuPrincipal.inicio, 'inicio')
+                    pyautogui.click(446, 275)  # Clica em início
                     
-                    espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio, 'consórcio')  # Consórcio
-                    espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'financeiro')
+                    centro_consorcio = pyautogui.locateCenterOnScreen(image='APP/static/img/consorcio.PNG')
+                    pyautogui.click(*centro_consorcio)  # Clica em Consórcio
 
-                    espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - financeiro')
+                    centro_financeiro = pyautogui.locateCenterOnScreen(image='APP/static/img/financeiro.PNG')
+                    pyautogui.click(*centro_financeiro)  # Clica em Financeiro
 
-                    espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'conta corrente concessionária')
+                    pyautogui.click(91, 350)
+                    pyautogui.click(92, 413)
 
-                    # ===============================
-                    #        ACESSO AO JANELA
-                    # ===============================
                     seleciona_uma_aba_do_navegador(driver, -1)
+                    driver.maximize_window()
                 except Exception as e:
                     logging.error(f'Erro ao acessar a tela para baixar o pdf.\nDescrição: {str(e)}\n{'-'*60}')
                     seleciona_uma_aba_do_navegador(driver, -1)
@@ -731,15 +727,9 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     preencher_campo(driver, path.Janela.input_inicio, data_ontem)
                     preencher_campo(driver, path.Janela.input_fim, data_ontem)
 
-                    espera_personalizada(
-                        lambda: driver.find_element(By.CSS_SELECTOR, 'select').click(),
-                        inicio_random=1,
-                        fim_random=3
-                    )
-
-                    clica_na_aba(wdw, 'select option', 'outros')
-
-                    clicar_pelo_atributo(driver, 'value', 'confirmar', path.Janela.btn_confirmar)
+                    pyautogui.click(1202, 174)  # Clica no select
+                    pyautogui.click(1194, 215)  # Clica na opção de Outros
+                    pyautogui.click(1607, 174)  # Clica em Confirmar
                     
                     linha_tabela = wdw.until(
                         EC.presence_of_element_located((By.ID, "Grid2ContainerRow_0001"))
@@ -754,8 +744,10 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     continue
 
                 try:
-                    clicar_pelo_atributo(driver, 'value', 'imprimir', path.Janela.btn_imprimir)
+                    centro_imprimir = pyautogui.locateCenterOnScreen(image='APP/static/img/btn_imprimir.PNG')
+                    pyautogui.click(*centro_imprimir)  # Clica em Imprimir
 
+                    sleep(random.randint(2, 4))
                     troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")
                     garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")  # ✅ verificar
                 except Exception as e:
@@ -772,7 +764,6 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     driver.close()
                 
                 seleciona_uma_aba_do_navegador(driver, 0)
-                driver.switch_to.frame(0)
 
                 try:
                     extract_text_pdfplumber(nome_loja=user.nome_loja)
@@ -782,11 +773,10 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                     driver.get(path.Url.url)
                     continue
 
-            sleep(random.randint(2, 4))
             # ===============================
             #          SAIR DA LOJA
             # ===============================
-            sair_ihs(driver, path.Logout.btn_sair)
+            pyautogui.click(1644, 150)  # Clica em sair
 
         except Exception as e:
             logging.error(f'Erro ao solicitar a carga da loja {user.nome_loja}.\nDescrição: {str(e)}')
