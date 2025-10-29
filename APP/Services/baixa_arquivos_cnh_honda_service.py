@@ -501,10 +501,11 @@ def verificar_arquivos(pasta_downloads: str | os.PathLike, lojas: list[str]) -> 
         has_pdf  = pdf_path.exists()
         has_xlsx = xlsx_path.exists()
 
-        if not has_zip:
-            status["missing_zip"].add(loja_u)
-        elif has_zip and not has_txt:
-            status["need_extract_from_zip"].add(loja_u)
+        if not has_txt:
+            if not has_zip:
+                status["missing_zip"].add(loja_u)
+            elif has_zip and not has_txt:
+                status["need_extract_from_zip"].add(loja_u)
 
         if loja_u in CRITICAS_PDF_XLSX and (not has_pdf or not has_xlsx):
             status["missing_pdf_or_xlsx"].add(loja_u)
