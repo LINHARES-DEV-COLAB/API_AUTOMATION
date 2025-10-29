@@ -651,29 +651,42 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
 
                     clicar_pelo_atributo(driver, 'value', 'ok', path.Frame.btn_baixar)
 
-                    sleep(random.randint(2, 4))
-                    driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0)
-                    driver.switch_to.frame(0)
-
                     try:
-                        sleep(random.randint(2, 4))
-                        troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
-                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ✅ verificar
-                    except Exception as e:
-                        logging.error(f'Erro ao trocar o nome do arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
-                        pular_loja = True
-                        break
+                        texto = WebDriverWait(driver, timeout=15).until(
+                            EC.visibility_of_element_located((By.TAG_NAME, path.Frame.texto_interno))
+                        )
 
-                    try:
+                        with open((PASTA_DOWNLOADS / f"{user.nome_loja}.txt"), 'w', encoding='utf-8') as f:
+                            f.writelines(texto.text)
+                            
+                        driver.close()
+                        seleciona_uma_aba_do_navegador(driver, 0)
+                    except:
                         sleep(random.randint(2, 4))
-                        caminho_zip = os.path.join(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
-                        prefixo_zip = r"hda0334_new\d$\wwwhondaihs\internet\dwnhsfzip"
-                        extrair_arquivo_alvo(caminho_zip, PASTA_DOWNLOADS, nome_arquivo=None, prefixo=prefixo_zip)
-                    except Exception as e:
-                        logging.error(f'Erro ao extrair o arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
-                        pular_loja = True
-                        break
+                        driver.close()
+                        seleciona_uma_aba_do_navegador(driver, 0)
+
+                        sleep(random.randint(2, 4))
+                        txt_existe = (PASTA_DOWNLOADS / f"{user.nome_loja}.txt").exists()
+                        if not txt_existe:
+                            try:
+                                sleep(random.randint(2, 4))
+                                troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
+                                garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ✅ verificar
+                            except Exception as e:
+                                logging.error(f'Erro ao trocar o nome do arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
+                                pular_loja = True
+                                break
+
+                            try:
+                                sleep(random.randint(2, 4))
+                                caminho_zip = os.path.join(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
+                                prefixo_zip = r"hda0334_new\d$\wwwhondaihs\internet\dwnhsfzip"
+                                extrair_arquivo_alvo(caminho_zip, PASTA_DOWNLOADS, nome_arquivo=None, prefixo=prefixo_zip)
+                            except Exception as e:
+                                logging.error(f'Erro ao extrair o arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
+                                pular_loja = True
+                                break
 
                     try:
                         sleep(random.randint(2, 4))
