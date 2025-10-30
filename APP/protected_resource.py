@@ -10,7 +10,8 @@ def _jwt_guard(fn):
         try:
             verify_jwt_in_request()
         except Exception as e:
-            return jsonify({"error": "Não autorizado", "message": str(e)}), 401
+            # RETORNE dict + code, NÃO jsonify()!
+            return {"error": "Não autorizado", "message": str(e)}, 401
         return fn(*args, **kwargs)
     return wrapper
 

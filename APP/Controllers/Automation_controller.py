@@ -1,12 +1,15 @@
+from enum import auto
 from http import HTTPStatus
-from flask import current_app
+from pdb import run
+from click import Parameter
+from flask import current_app, request
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy.exc import SQLAlchemyError
 from APP.Config.supa_config import db
 from APP.protected_resource import ProtectedResource
 from APP.Models.sector_model import Sector
 from APP.Models.automation_model import Automation
-from APP.Models.run_model import Run  # cuidado com maiúscula
+from APP.Models.run_model import Run  
 
 auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
 
@@ -41,6 +44,14 @@ run_model = auto_ns.model("Run", {
     "startedAt":    fields.String,
     "finishedAt":   fields.String,
     "output":       fields.Raw,
+})
+
+run_input_model = auto_ns.model("RunInput", {
+    "lojas": fields.String(required=False),
+    "url": fields.String(required=False),
+    "param1": fields.String(required=False),
+    "param2": fields.String(required=False),
+    # Adicione outros parâmetros que suas automações podem usar
 })
 
 # ===== /automation/departments ===== (NÃO use jsonify aqui)
@@ -100,29 +111,61 @@ class Automations(Resource):  # use ProtectedResource se exigir JWT
             current_app.logger.exception("[AUTOMATIONS] Erro inesperado")
             auto_ns.abort(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal Server Error")
 
-# ===== POST /automation/automations/<automation_id>/run =====
+
 @auto_ns.route("/automations/<string:automation_id>/run")
 class RunAutomation(ProtectedResource):
     @auto_ns.marshal_with(run_model, code=HTTPStatus.ACCEPTED, envelope=None)
     def post(self, automation_id: str):
         try:
-            # CRIA execução (use a sua lógica real, aqui é exemplo)
-            r = Run(automation_id=automation_id, status="queued")
+            # Trata requests sem Content-Type JSON
+            if request.content_type and 'application/json' in request.content_type:
+                parameters = request.json or {}
+            else:
+                parameters = {}
+            
+            print(f"🔍 DEBUG - Parameters: {parameters}")
+            print(f"🔍 DEBUG - Chamando factory para: {automation_id}")
+            
+            from APP.Services.central_service import AutomationFactory
+            factory = AutomationFactory()
+            command = factory.create_command(automation_id)
+            
+            print(f"🔍 DEBUG - Command retornado: {command}")
+            print(f"🔍 DEBUG - Tipo do command: {type(command)}")
+            
+            if not command:
+                print("❌ DEBUG - Command NÃO encontrado!")
+                return {"error": "Automação não encontrada"}, 404
+            
+            print("✅ DEBUG - Command encontrado! Validando parâmetros...")
+            if not command.validate_parameters(parameters):
+                return {"error": "Parâmetros inválidos"}, 400
+            
+            print("🚀 DEBUG - Executando command...")
+            resultado = command.execute(parameters)
+            print(f"🔍 DEBUG - Resultado: {resultado}")
+            
+            # Cria registro no banco
+            r = Run(automation_id=automation_id, status="completed")
+            r.output = resultado
             db.session.add(r)
             db.session.commit()
-
+            
             return {
                 "runId": r.id,
                 "automationId": r.automation_id,
                 "status": r.status,
-                "startedAt": r.started_at.isoformat() if getattr(r, "started_at", None) else None,
-                "finishedAt": r.finished_at.isoformat() if getattr(r, "finished_at", None) else None,
-                "output": r.output,
+                "startedAt": r.started_at.isoformat() if r.started_at else None,
+                "finishedAt": r.finished_at.isoformat() if r.finished_at else None,
+                "output": resultado,
             }, HTTPStatus.ACCEPTED
-        except Exception:
-            current_app.logger.exception("Falha em POST /automation/automations/%s/run", automation_id)
+            
+        except Exception as e:
+            print(f"❌ EXCEPTION: {e}")
+            import traceback
+            traceback.print_exc()
             db.session.rollback()
-            auto_ns.abort(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal Server Error")
+            return {"error": str(e)}, 500  # ← Use return em vez de auto_ns.abort
 
 # ===== /automation/ (ping) =====
 automation_model = auto_ns.model("Automation", {
@@ -130,6 +173,8 @@ automation_model = auto_ns.model("Automation", {
     "name":        fields.String(required=True),
     "description": fields.String,
 })
+
+
 @auto_ns.route("/")
 class AutomationRoot(ProtectedResource):
     @auto_ns.marshal_list_with(automation_model, code=HTTPStatus.OK, envelope=None)
@@ -140,3 +185,9 @@ class AutomationRoot(ProtectedResource):
         data = [{"id": str(i), "name": n, "description": d} for (i, n, d) in rows]
         current_app.logger.info("[AUTOMATIONS] Amostra IDs: %s", [d["id"] for d in data])
         return data, HTTPStatus.OK
+    
+@auto_ns.route("/test-simple")
+class TestSimple(Resource):  # ← Use Resource em vez de ProtectedResource
+    def post(self):
+        print("🔍 DEBUG - Rota simples funcionando!")
+        return {"message": "Rota simples funciona!", "status": "success"}, 200

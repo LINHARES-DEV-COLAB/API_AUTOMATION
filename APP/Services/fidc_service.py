@@ -79,12 +79,19 @@ def run():
                 print(f"   ✅ {nfs_marcadas} NFs marcadas com sucesso")
             else:
                 print("   ❌ Nenhuma NF do Excel foi encontrada")
-        
+                
+        resultado = {
+            "nfs_excel": len(nfs_excel),
+            "nfs_marcadas": nfs_marcadas,
+            "nfs_nao_encontradas": nfs_nao_encontradas,
+            "nfs_com_problema": nfs_com_problema,
+            "eficiencia": (nfs_marcadas / len(nfs_excel)) * 100 if nfs_excel else 0,
+            "status": "success"
+        }
+            
         print(f"\n🎉 PROCESSO CONCLUÍDO!")
-        
-        print("\n🔍 Browser mantido aberto para verificação...")
-        input("⏸️  Pressione Enter para fechar...")
-        
+        return resultado
+    
     except Exception as e:
         print(f"❌ ERRO: {e}")
         import traceback
@@ -93,8 +100,6 @@ def run():
         print("\n🔍 Browser mantido aberto para debug...")
         input("⏸️  Pressione Enter para fechar...")
     finally:
-
-
         bot.close()
 
 if __name__ == "__main__":
