@@ -1,4 +1,3 @@
-# main.py - VERSÃO CORRIGIDA
 from datetime import timedelta
 import os
 from APP.Config.supa_config import init_db

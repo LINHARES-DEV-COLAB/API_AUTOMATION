@@ -290,21 +290,47 @@ window.addEventListener('DOMContentLoaded', () => {
       const dep = $('#selDepartment').value.trim();
       if (!dep) { alert('Selecione um setor primeiro.'); return; }
       try {
-        const rows = await call('GET', `/automation/automations/${encodeURIComponent(dep)}`);
-        // preencher select de automações (se existir id/nome)
+        const response = await call('GET', `/automation/automations/${encodeURIComponent(dep)}`);
+        
+        // Debug: ver o que a API está retornando
+        console.log('Resposta da API:', response);
+        
+        // Tratar diferentes formatos de resposta
+        let rows = [];
+        if (Array.isArray(response)) {
+          rows = response;
+        } else if (response && typeof response === 'object') {
+          // Se for um objeto, verificar se tem uma propriedade que é array
+          if (response.automations && Array.isArray(response.automations)) {
+            rows = response.automations;
+          } else if (response.data && Array.isArray(response.data)) {
+            rows = response.data;
+          } else if (response.items && Array.isArray(response.items)) {
+            rows = response.items;
+          } else {
+            // Se for um objeto único, colocar em array
+            rows = [response];
+          }
+        }
+        
+        // preencher select de automações
         const selA = $('#selAutomation');
         selA.innerHTML = '<option value="">— selecione —</option>';
-        (rows || []).forEach(a => {
+        
+        rows.forEach(a => {
           const opt = document.createElement('option');
-          opt.value = a.id ?? a.automation_id ?? a.name;
-          const label = a.name ?? a.description ?? ('Automation ' + String(opt.value));
+          opt.value = a.id ?? a.automation_id ?? a.automationId ?? a.name;
+          const label = a.name ?? a.description ?? a.title ?? ('Automation ' + String(opt.value));
           opt.textContent = label;
           selA.appendChild(opt);
         });
+        
         // render também em tabela para visualizar tudo
-        const cols = Array.isArray(rows) && rows.length ? Object.keys(rows[0]) : ['id','name','description'];
+        const cols = rows.length > 0 ? Object.keys(rows[0]) : ['id','name','description'];
         renderTable(rows, cols);
+        
       } catch (e) {
+        console.error('Erro detalhado:', e);
         alert('Falha ao carregar automações do setor: ' + e.message);
       }
     }
@@ -314,11 +340,21 @@ window.addEventListener('DOMContentLoaded', () => {
     $('#btnShowAutomation').addEventListener('click', loadAutomationsForSelectedDepartment);
 
     // Quando trocar o setor, já buscar as automações desse setor
+// Quando trocar o setor, já buscar as automações desse setor
     $('#selDepartment').addEventListener('change', async () => {
+      const selAutomation = $('#selAutomation');
       if ($('#selDepartment').value) {
-        await loadAutomationsForSelectedDepartment();
+        selAutomation.innerHTML = '<option value="">— carregando automações —</option>';
+        try {
+          await loadAutomationsForSelectedDepartment();
+        } catch (e) {
+          selAutomation.innerHTML = '<option value="">— erro ao carregar —</option>';
+          console.error(e);
+        }
       } else {
-        $('#selAutomation').innerHTML = '<option value="">— selecione um setor primeiro —</option>';
+        selAutomation.innerHTML = '<option value="">— selecione um setor primeiro —</option>';
+        // Limpar tabela também
+        tbl.innerHTML = '';
       }
     });
 
