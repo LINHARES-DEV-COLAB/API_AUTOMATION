@@ -3,6 +3,7 @@ from flask_restx import Namespace, Resource, fields
 from flask_jwt_extended import create_access_token
 import sys
 import os
+from datetime import timedelta
 
 # Configurar path - UMA VEZ só no topo
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -41,7 +42,7 @@ class Login(Resource):
 
         identity =  usuario
 
-        access_token = create_access_token(identity=identity, additional_claims=claims)
+        access_token = create_access_token(identity=identity, additional_claims=claims, expires_delta=timedelta(hours=10))
 
         return {
             "ok": True,
