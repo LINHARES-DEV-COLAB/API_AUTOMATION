@@ -710,7 +710,6 @@ def conciliacao_cdc_honda_main(lojas: str):
     driver.get(url)  # Entra no site do IHS
 
     for user in usuarios:
-
         try:
 
 

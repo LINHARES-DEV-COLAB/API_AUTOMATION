@@ -11,13 +11,13 @@ class SolicitacaoCarga(Resource):
         try:
             # chama seu orquestrador já com o parâmetro da rota
             status, resultado = solicitacao_carga_main(lojas)
-            return jsonify({"ok": status, "resultado": resultado})
+            return jsonify({"ok": True, "resultado": resultado})
         except ValueError as ve:
             # erros de validação (lojas inexistentes, listas desbalanceadas etc.)
-            return make_response(jsonify({"ok": status, "erro": str(ve)}), 400)
+            return make_response(jsonify({"ok": False, "erro": str(ve)}), 400)
         except Exception as e:
             # erros inesperados
-            return make_response(jsonify({"ok": status, "erro": str(e)}), 500)
+            return make_response(jsonify({"ok": False, "erro": str(e)}), 500)
 
 
 

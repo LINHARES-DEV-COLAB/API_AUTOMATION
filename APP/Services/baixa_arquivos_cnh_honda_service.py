@@ -704,7 +704,7 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                 driver.get(path.Url.url)
                 continue
 
-            if user.nome_loja in ['JUAZEIRO', 'CRATO', 'NOVA_ONDA_ARACATI']:
+            if user.nome_loja in ['JUAZEIRO', 'CRATO', 'NOVA-ONDA-ARACATI']:
                 try:
                     driver.switch_to.default_content()
                     clica_na_aba(wdw, path.MenuPrincipal.inicio, 'inicio')

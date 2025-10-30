@@ -359,7 +359,6 @@ def solicitacao_carga_main(lojas):
 
     for user in usuarios:
 
-
         try:
             # ===============================
             #             LOGIN
@@ -417,7 +416,7 @@ def solicitacao_carga_main(lojas):
                 fim_random=4
             )
 
-            check_box = wdw.until(
+            check_box = WebDriverWait(driver, timeout=15).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, path.Frame.checkbox_ccc))
             )
 
