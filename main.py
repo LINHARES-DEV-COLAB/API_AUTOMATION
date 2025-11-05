@@ -115,14 +115,18 @@ def _configure_cors(app):
         app,
         resources={
             r"/*": {
-                "origins": ["http://127.0.0.1:5500", "http://localhost:5500"],
-                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "origins": [
+                    "https://liliauto.flutterflow.app",
+                    "http://172.17.67.19:8982",
+                    "http://localhost:8982",
+                    r"http://localhost:\d+"
+                ],
                 "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-                "supports_credentials": True
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "expose_headers": ["Authorization"],
             }
         },
-        supports_credentials=False,
-        expose_headers=["Content-Type", "Authorization"]
+        supports_credentials=True,
     )
 
 def _register_routes(app):

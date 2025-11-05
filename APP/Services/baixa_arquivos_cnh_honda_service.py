@@ -557,13 +557,21 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
     except Exception as e:
         return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
 
-    try:
-        driver.get(path.Url.url)
-    except Exception as e:
-        return False, f'Erro ao abrir o site.\nDescrição: {str(e)}'
 
     for user in usuarios:
         pular_loja = False
+        abas = espera_personalizada(
+                lambda: driver.window_handles,
+                retorno=True
+            )
+        if len(abas) > 1:
+                seleciona_uma_aba_do_navegador(driver, -1)
+                driver.close()
+                seleciona_uma_aba_do_navegador(driver, 0)
+        try:
+            driver.get(path.Url.url)
+        except Exception as e:
+            return False, f'Erro ao abrir o site.\nDescrição: {str(e)}'
         try:
             # ===============================
             #             LOGIN
@@ -590,6 +598,8 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
                 prosseguir = wdw.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_prosseguir))
                 )
+
+                sleep(2)
 
                 prosseguir.click()
             except Exception as e:

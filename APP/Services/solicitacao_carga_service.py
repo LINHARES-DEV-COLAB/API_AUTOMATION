@@ -349,8 +349,6 @@ def solicitacao_carga_main(lojas):
 
     driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
 
-    driver.get(path.Url.url)
-
     # Busca todos os usuários cadastrados
     try:
         usuarios = get_all_users(lojas)
@@ -358,7 +356,7 @@ def solicitacao_carga_main(lojas):
         return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
 
     for user in usuarios:
-
+        driver.get(path.Url.url)
         try:
             # ===============================
             #             LOGIN
@@ -379,6 +377,8 @@ def solicitacao_carga_main(lojas):
             prosseguir = wdw.until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_prosseguir))
             )
+
+            sleep(2)
 
             prosseguir.click()
 
