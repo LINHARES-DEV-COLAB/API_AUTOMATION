@@ -1,5 +1,6 @@
 from datetime import datetime
 from APP.Config.supa_config import db
+from APP.Models.store_model import Store
 
 class Store(db.Model):
     __tablename__ = "store"

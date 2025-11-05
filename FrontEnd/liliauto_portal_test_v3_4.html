@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LiLi Auto • Portal (HTML Test Harness v3.4)</title>
+  <style>
+    :root{ --bg:#0f172a; --card:#0b1227; --text:#e5e7eb; --muted:#94a3b8;
+      --brand:#22d3ee; --surface:#111827; --shadow:0 10px 30px rgba(0,0,0,.25); --radius:16px; }
+    *{box-sizing:border-box}
+    body{margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      background:var(--bg); color:var(--text);}
+    .wrap{display:flex; flex-direction:column; min-height:100dvh}
+    header{background:#0b1227; box-shadow:var(--shadow)}
+    .topbar{display:flex; align-items:center; justify-content:space-between; gap:24px; padding:16px 24px; max-width:1280px; margin:auto}
+    .logo{display:flex; align-items:center; gap:12px}
+    .logo img{height:40px}
+    .controls{display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:flex-end}
+    .input, select, button, textarea{border-radius:8px; border:1px solid #26324e; background:#0a1224; color:var(--text); outline:none}
+    .input, select, button{height:40px; padding:0 12px;}
+    textarea{padding:12px; min-height:90px; resize:vertical}
+    .input::placeholder, textarea::placeholder{color:#64748b}
+    button{border:none; background:var(--brand); color:#001018; font-weight:700; cursor:pointer}
+    button.ghost{background:#7a8086aa; color:var(--text)}
+    button:disabled{opacity:.5; cursor:not-allowed}
+    .divider{height:9px; background:var(--brand)}
+    main{flex:1; background: radial-gradient(1200px 1200px at 120% -20%, #133b47 0%, transparent 45%)}
+    .container{max-width:1280px; margin:0 auto; padding:24px}
+    .row{display:flex; gap:24px; flex-wrap:wrap; justify-content:center}
+    .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:24px}
+    .card h3{margin:0 0 8px 0; font-size:16px}
+    .hr{height:2px; background:var(--brand); width:40%; margin:0 0 16px 0}
+    .w-30{width:min(420px, 100%)}
+    .w-68{width:min(870px, 100%)}
+    .w-80{width:min(1024px, 100%)}
+    .logbox{background:var(--surface); border-radius:12px; padding:16px; height:140px; overflow:auto; border:1px solid #1f2937;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px}
+    .flex{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+    .checkbox-col{columns:2; column-gap:24px}
+    .checkbox-col label{break-inside:avoid; margin-bottom:6px; font-size:14px; color:#cbd5e1; display:flex; gap:8px; align-items:center}
+    .hidden{display:none !important}
+    footer{background:#1f2937aa; color:var(--text)}
+    .footer-in{display:flex; align-items:center; justify-content:space-between; gap:24px; padding:12px 24px; max-width:1280px; margin:auto; flex-wrap:wrap}
+    .pill{display:inline-block; padding:4px 8px; border:1px solid #334155; border-radius:999px; color:#cbd5e1; font-size:12px}
+    a.link{color:var(--brand); text-decoration:none}
+    small.helper{display:block; color:#94a3b8; margin-top:4px}
+    .filebox{background:#0a1224; border:1px dashed #334155; padding:12px; border-radius:10px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="topbar">
+      <div class="logo">
+        <img src="https://dummyimage.com/160x40/0b1227/22d3ee.png&text=LiLi+Auto" alt="LiLi Auto"/>
+        <span class="pill">Portal (HTML Test v3.4)</span>
+      </div>
+      <div class="controls">
+        <input id="userInput" class="input" placeholder="usuário (ex.: nome.sobrenome)" value="nome.sobrenome"/>
+        <input id="baseUrl" class="input" style="min-width:320px" placeholder="Base URL da API (ex.: http://127.0.0.1:5000)" value="http://127.0.0.1:5000"/>
+        <input id="jwt" class="input" style="min-width:320px" placeholder="JWT (somente o token)"/>
+        <button id="btnSave">Salvar</button>
+        <button id="btnLogout" class="ghost">Sair</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+  </header>
+
+  <main>
+    <div class="container">
+
+      <div class="row">
+        <div class="card w-30">
+          <h3>Área de Negócio</h3>
+          <div class="hr"></div>
+          <select id="departments" disabled>
+            <option value="">Carregando...</option>
+          </select>
+          <small class="helper">GET <code>/automation/departments</code></small>
+        </div>
+
+        <div class="card w-30">
+          <h3>Automações</h3>
+          <div class="hr"></div>
+          <select id="automations" disabled>
+            <option value="">Selecione a área</option>
+          </select>
+          <input id="automationsPath" class="input" value="/automation/automations" style="margin-top:12px"/>
+          <small class="helper">GET <code>/automation/automations/{department_id}</code> — o caminho acima é prefixo; o <code>{id}</code> é concatenado automaticamente.</small>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="card w-68">
+          <h3>Execução</h3>
+          <div class="hr"></div>
+
+          <div class="grid2">
+            <div>
+              <label class="pill">Endpoint de execução</label>
+              <div class="input" id="execEndpoint" style="height:auto; padding:10px; margin-top:6px">
+                <code>/automation/automations/{automation_id}/run</code>
+              </div>
+              <small class="helper">Montado automaticamente pelo <b>automation_id</b> selecionado.</small>
+            </div>
+            <div>
+              <label class="pill">Parâmetros extras (key=value por linha)</label>
+              <textarea id="extraParams" placeholder="ex.: ref_date=2025-11-05&#10;mode=full"></textarea>
+              <small class="helper">Serão enviados no <code>FormData</code> junto com departmentId/lojas/arquivos.</small>
+            </div>
+          </div>
+
+          <div class="grid2" style="margin-top:12px">
+            <div class="filebox">
+              <label class="pill">Arquivos (múltiplos)</label><br/>
+              <input id="fileInput" type="file" multiple />
+              <small class="helper">
+                Para <b>baixas_pan</b> e <b>fidc</b> o primeiro arquivo vai como <code>arquivo_excel</code> (obrigatório).<br/>
+                Todos os arquivos também são enviados como <code>files[]</code>.
+              </small>
+            </div>
+            <div>
+              <div class="pill" style="display:inline-block; margin-bottom:8px">Resumo</div>
+              <div id="execInfo" class="logbox" style="height:120px"></div>
+            </div>
+          </div>
+
+          <div id="blkCDC" class="card" style="background:#0a1224; margin-top:16px">
+            <h4 style="margin:0 0 12px 0">Conciliação CDC Honda – Filiais</h4>
+            <div class="checkbox-col" id="cdcChecks"></div>
+            <div class="flex" style="margin-top:16px">
+              <button id="cdcSelectAll">Selecionar Todos</button>
+              <button id="cdcClear" class="ghost">Desmarcar Todos</button>
+            </div>
+          </div>
+
+          <div id="blkCNH" class="card" style="background:#0a1224; margin-top:16px">
+            <h4 style="margin:0 0 12px 0">Baixas CNH Honda – Filiais</h4>
+            <div class="checkbox-col" id="cnhChecks"></div>
+            <div class="flex" style="margin-top:16px">
+              <button id="cnhSelectAll">Selecionar Todos</button>
+              <button id="cnhClear" class="ghost">Desmarcar Todos</button>
+            </div>
+          </div>
+
+          <div class="flex" style="margin-top:16px; justify-content:flex-end">
+            <button id="btnRun" disabled>Executar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="card w-30">
+          <h3>Status</h3>
+          <div class="hr"></div>
+          <div class="logbox" id="statusLog"></div>
+        </div>
+        <div class="card w-30">
+          <h3>Saídas</h3>
+          <div class="hr"></div>
+          <div class="logbox" id="outputsLog"></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="card w-80">
+          <h3>Últimas execuções</h3>
+          <div class="hr"></div>
+          <div class="logbox" id="historyLog" style="height:220px"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-in">
+      <div>Todos os direitos reservados ao Grupo Linhares. Fortaleza 2025</div>
+      <div class="pill">Dev • Teste local com CORS</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  const LS_KEYS = { baseUrl:'liliauto_base_url', jwt:'liliauto_jwt', user:'liliauto_user', autosPath:'liliauto_autos_path' };
+
+  const statusLog = document.getElementById('statusLog');
+  const outputsLog = document.getElementById('outputsLog');
+  const historyLog = document.getElementById('historyLog');
+  const execInfo = document.getElementById('execInfo');
+
+  const elUser = document.getElementById('userInput');
+  const elBase = document.getElementById('baseUrl');
+  const elJwt  = document.getElementById('jwt');
+  const elDeps = document.getElementById('departments');
+  const elAutos = document.getElementById('automations');
+  const elAutosPath = document.getElementById('automationsPath');
+  const btnRun = document.getElementById('btnRun');
+
+  const fileInput = document.getElementById('fileInput');
+  const extraParams = document.getElementById('extraParams');
+
+  const blkCDC = document.getElementById('blkCDC');
+  const blkCNH = document.getElementById('blkCNH');
+
+  let automationMap = []; // array of {id,name,raw}
+
+  const log = (where, msg, obj=null)=>{
+    const time = new Date().toLocaleString();
+    let html = `<div><span class="pill" style="margin-right:8px">${time}</span>${msg}</div>`;
+    if(obj){
+      const pre = document.createElement('pre');
+      pre.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      where.appendChild(document.createRange().createContextualFragment(html));
+      where.appendChild(pre);
+    }else{
+      where.insertAdjacentHTML('beforeend', html);
+    }
+    where.scrollTop = where.scrollHeight;
+  };
+  const authHeader = ()=>{
+    const token = localStorage.getItem(LS_KEYS.jwt) || elJwt.value.trim();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+  const getBase = ()=> (localStorage.getItem(LS_KEYS.baseUrl) || elBase.value.trim() || '');
+  const getAutosPath = ()=> (localStorage.getItem(LS_KEYS.autosPath) || elAutosPath.value.trim() || '/automation/automations');
+
+  const savePersist = ()=>{
+    localStorage.setItem(LS_KEYS.user, elUser.value.trim());
+    localStorage.setItem(LS_KEYS.baseUrl, elBase.value.trim());
+    localStorage.setItem(LS_KEYS.jwt, elJwt.value.trim());
+    localStorage.setItem(LS_KEYS.autosPath, elAutosPath.value.trim());
+    log(statusLog, '✅ Preferências salvas localmente (LocalStorage).');
+  };
+  const loadPersist = ()=>{
+    const u = localStorage.getItem(LS_KEYS.user); if(u) elUser.value = u;
+    const b = localStorage.getItem(LS_KEYS.baseUrl); if(b) elBase.value = b;
+    const j = localStorage.getItem(LS_KEYS.jwt); if(j) elJwt.value = j;
+    const ap = localStorage.getItem(LS_KEYS.autosPath); if(ap) elAutosPath.value = ap;
+  };
+  const clearPersist = ()=>{
+    Object.values(LS_KEYS).forEach(k=> localStorage.removeItem(k));
+    elUser.value = 'nome.sobrenome'; elBase.value='http://127.0.0.1:5000'; elJwt.value=''; elAutosPath.value='/automation/automations';
+    log(statusLog, '🔒 Você saiu. Os campos foram limpos.');
+  };
+
+  const apiGet = async (path)=>{
+    const base = getBase();
+    if(!base) throw new Error('Base URL vazia.');
+    const url = base.replace(/\/$/,'') + path;
+    const res = await fetch(url, { headers: { 'Accept':'application/json', ...authHeader() } });
+    const text = await res.text();
+    let data = null; try{ data = text ? JSON.parse(text) : null } catch{ data = { raw:text } }
+    if(!res.ok){
+      const err = new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
+      err.status = res.status; err.response = data || text; throw err;
+    }
+    return { res, data };
+  };
+
+  const apiPostForm = async (path, formData)=>{
+    const base = getBase();
+    const url = base.replace(/\/$/,'') + path;
+    const headers = { ...authHeader() }; // NÃO setar Content-Type manualmente
+    const res = await fetch(url, { method:'POST', headers, body: formData });
+    const text = await res.text();
+    let data = null; try{ data = text ? JSON.parse(text) : null } catch{ data = { raw:text } }
+    if(!res.ok){
+      const err = new Error(`POST ${url} -> ${res.status} ${res.statusText}`);
+      err.status = res.status; err.response = data || text; throw err;
+    }
+    return { res, data };
+  };
+
+  const loadDepartments = async ()=>{
+    elDeps.disabled = true; elDeps.innerHTML = `<option>Carregando...</option>`;
+    try{
+      const { data, res } = await apiGet('/automation/departments');
+      const items = Array.isArray(data) ? data : (data?.departments || data?.data || data?.items || []);
+      elDeps.innerHTML = `<option value="">Selecione...</option>` + items.map(o=>`<option value="${o.id||o.name}">${o.name||o.id}</option>`).join('');
+      elDeps.disabled = false;
+      log(statusLog, '✅ Departamentos carregados.', { status: res.status, items });
+    }catch(err){
+      elDeps.innerHTML = `<option value="">Erro ao carregar</option>`;
+      log(statusLog, '❌ Erro ao carregar departamentos.', { error: String(err), status: err?.status, response: err?.response });
+    }
+  };
+
+  const buildAutosPath = (departmentId)=>{
+    let p = getAutosPath().trim();
+    if(!p.endsWith('/')) p += '/';
+    return p + encodeURIComponent(departmentId);
+  };
+
+  const loadAutomations = async (departmentId)=>{
+    elAutos.disabled = true; elAutos.innerHTML = `<option>Carregando...</option>`;
+    const path = buildAutosPath(departmentId);
+    try{
+      const fullUrl = (getBase().replace(/\/$/,'') + path);
+      log(statusLog, 'ℹ️ Automations request (path param)', { url: fullUrl });
+      const { data, res } = await apiGet(path);
+
+      const list = Array.isArray(data) ? data : (data?.automations || data?.data || data?.items || []);
+      automationMap = list.map(o=>{
+        const id = o?.id ?? o?.automation_id ?? o?.code ?? o;
+        const name = o?.name ?? o?.title ?? String(id);
+        return { id: String(id), name: String(name), raw: o };
+      });
+
+      if(automationMap.length === 0){
+        automationMap = [
+          {id:'cdc', name:'Conciliação CDC Honda', raw:{} },
+          {id:'cnh', name:'Baixas CNH Honda', raw:{} },
+          {id:'baixas_pan', name:'Baixas PAN (demo)', raw:{} },
+          {id:'fidc', name:'FIDC (demo)', raw:{} },
+        ];
+      }
+
+      elAutos.innerHTML = `<option value="">Selecione...</option>` + automationMap.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+      elAutos.disabled = false;
+      updateExecSummary();
+      showHideBlocks();
+      log(statusLog, '✅ Automações carregadas.', { status: res.status, count: automationMap.length });
+    }catch(err){
+      elAutos.innerHTML = `<option value="">Erro ao carregar</option>`;
+      log(statusLog, '❌ Erro ao carregar automações.', { error: String(err), status: err?.status, response: err?.response });
+    }
+  };
+
+  const updateExecSummary = ()=>{
+    const dep = elDeps.value || '—';
+    const autoId = elAutos.value || '—';
+    const autoObj = automationMap.find(a=>a.id===autoId);
+    const autoName = autoObj?.name || '—';
+    const endpoint = `/automation/automations/${autoId||'{automation_id}'}/run`;
+    document.getElementById('execEndpoint').innerHTML = `<code>${endpoint}</code>`;
+    execInfo.innerHTML = "";
+    log(execInfo, `dep: <b>${dep}</b> • autoId: <b>${autoId}</b> • auto: <b>${autoName}</b>`);
+
+    // habilita/desabilita botão
+    btnRun.disabled = !(elDeps.value && elAutos.value);
+  };
+
+  const parseExtraParams = ()=>{
+    const lines = (extraParams.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const obj = {};
+    for(const line of lines){
+      const ix = line.indexOf('=');
+      if(ix>0){
+        const k = line.slice(0,ix).trim();
+        const v = line.slice(ix+1).trim();
+        obj[k]=v;
+      }
+    }
+    return obj;
+  };
+
+  const runExecution = async ()=>{
+    const depId = elDeps.value;
+    const autoId = elAutos.value;
+    if(!depId || !autoId){
+      alert('Selecione a área de negócio e a automação.');
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('departmentId', depId);
+
+    const addArray = (key, values)=> values.forEach(v=> fd.append(key, v));
+
+    const autoName = (automationMap.find(a=>a.id===autoId)?.name || '');
+    if(/Conciliação CDC Honda/i.test(autoName)){
+      const vals = Array.from(document.querySelectorAll('#cdcChecks input[type="checkbox"]:checked')).map(i=>i.value);
+      addArray('branches[]', vals);
+      addArray('lojas[]', vals);
+    }else if(/Baixas CNH Honda/i.test(autoName)){
+      const vals = Array.from(document.querySelectorAll('#cnhChecks input[type="checkbox"]:checked')).map(i=>i.value);
+      addArray('branches[]', vals);
+      addArray('lojas[]', vals);
+    }
+
+    const extras = parseExtraParams();
+    Object.entries(extras).forEach(([k,v])=> fd.append(k, v));
+
+    const files = fileInput.files;
+    for(const file of files){
+      fd.append('files[]', file, file.name);
+    }
+    if((autoId==='baixas_pan' || autoId==='fidc') && files.length>0){
+      fd.append('arquivo_excel', files[0], files[0].name);
+    }
+
+    const path = `/automation/automations/${encodeURIComponent(autoId)}/run`;
+    log(statusLog, '🚀 Executando (multipart/form-data)...', { path, fields: [...fd.keys()] });
+    try{
+      const { data, res } = await apiPostForm(path, fd);
+      log(statusLog, '✅ Execução iniciada.', { status: res.status, data });
+      log(historyLog, '🧾 Histórico • Execução registrada.', { endpoint: path, response: data });
+
+      if(data && (data.files || data.links)){
+        const out = [];
+        (data.files||[]).forEach(f=> out.push(`<div>Arquivo: <a class="link" href="${f.url}" target="_blank" rel="noopener">${f.name||f.url}</a></div>`));
+        (data.links||[]).forEach(u=> out.push(`<div>Link: <a class="link" href="${u}" target="_blank" rel="noopener">${u}</a></div>`));
+        outputsLog.insertAdjacentHTML('afterbegin', out.join(''));
+      }else{
+        outputsLog.insertAdjacentHTML('afterbegin', `<div>Sem saídas explicitadas pelo back-end.</div>`);
+      }
+    }catch(err){
+      log(statusLog, '❌ Falha ao executar.', { error: String(err), status: err?.status, response: err?.response });
+      alert('Falha ao executar. Veja o log.');
+    }
+  };
+
+  document.getElementById('btnSave').addEventListener('click', async ()=>{
+    savePersist();
+    await loadDepartments();
+  });
+  document.getElementById('btnLogout').addEventListener('click', ()=>{
+    clearPersist();
+    elDeps.innerHTML = `<option value="">—</option>`; elDeps.disabled = true;
+    elAutos.innerHTML = `<option value="">—</option>`; elAutos.disabled = true;
+    btnRun.disabled = true;
+    execInfo.innerHTML = '';
+    updateExecSummary();
+  });
+  elDeps.addEventListener('change', (e)=>{
+    const id = e.target.value; if(id) loadAutomations(id);
+    updateExecSummary();
+  });
+  elAutos.addEventListener('change', ()=>{ updateExecSummary(); showHideBlocks(); });
+
+  btnRun.addEventListener('click', runExecution);
+
+  const cdcChecks = document.getElementById('cdcChecks');
+  const cnhChecks = document.getElementById('cnhChecks');
+  const fillChecks = (el, items)=>{
+    el.innerHTML = '';
+    items.forEach(v=>{
+      const lab = document.createElement('label');
+      lab.innerHTML = `<input type="checkbox" value="${v}"/> ${v}`;
+      el.appendChild(lab);
+    });
+  };
+  document.getElementById('cdcSelectAll').addEventListener('click', ()=> cdcChecks.querySelectorAll('input').forEach(i=> i.checked=true));
+  document.getElementById('cdcClear').addEventListener('click', ()=> cdcChecks.querySelectorAll('input').forEach(i=> i.checked=false));
+  document.getElementById('cnhSelectAll').addEventListener('click', ()=> cnhChecks.querySelectorAll('input').forEach(i=> i.checked=true));
+  document.getElementById('cnhClear').addEventListener('click', ()=> cnhChecks.querySelectorAll('input').forEach(i=> i.checked=false));
+
+  const showHideBlocks = ()=>{
+    const autoId = elAutos.value;
+    const obj = automationMap.find(a=>a.id===autoId);
+    const name = obj?.name || '';
+    blkCDC.classList.toggle('hidden', !/Conciliação CDC Honda/i.test(name));
+    blkCNH.classList.toggle('hidden', !/Baixas CNH Honda/i.test(name));
+  };
+
+  (function init(){
+    loadPersist();
+    const cdc = ['ARES - MOTOS - JUAZEIRO','ARES - MOTOS - CRATO','TERRA SANTA - MOTOS - CANINDÉ','NOVA ONDA - MOTOS - ARACATI'];
+    const cnh = ['ARES - MOTOS - ACM','ARES - MOTOS - IGUATU','ARES - MOTOS - SALVADOR - BONOCÔ','ARES - MOTOS - BREJO SANTO','ARES - MOTOS - CALÇADA','ARES - MOTOS - CRATO','ARES - MOTOS - CRUZ DAS ALMAS','ARES - MOTOS - ICO','ARES - MOTOS - IPU','ARES - MOTOS - ITAPAJÉ','ARES - MOTOS - ITAPIPOCA','ARES - MOTOS - JUAZEIRO','ARES - MOTOS - LITORAL','NOVA ONDA - MOTOS - ARACATI','NOVA ONDA - MOTOS - IGUATU','NOVA ONDA - MOTOS - LIMOEIRO','TERRA SANTA - MOTOS - CANINDÉ','ARES - MOTOS - TIANGUA','ARES - MOTOS - VALENÇA','ARES - MOTOS - CAMPO SALES'];
+    fillChecks(cdcChecks, cdc);
+    fillChecks(cnhChecks, cnh);
+    updateExecSummary();
+  })();
+</script>
+</body>
+</html>

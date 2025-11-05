@@ -51,7 +51,7 @@ def buscar_atributos(usuario: str, senha: str, atributos=None) -> Tuple[bool, Op
         # Alternativa: pesquisar por sAMAccountName=usuario ou userPrincipalName=upn
         filtros = f"(|(userPrincipalName={upn})(sAMAccountName={usuario}))"
         conn.search(search_base=LDAP_BASE_DN, search_filter=filtros, search_scope=SUBTREE,
-                    attributes=atributos or ["cn", "mail", "memberOf", "userPrincipalName"])
+                    attributes=atributos or ["cn", "mail", "memberOf", "userPrincipalName", "department","description"])
         if not conn.entries:
             conn.unbind()
             return False, None, "Usuário autenticou, mas entrada não foi localizada no diretório."

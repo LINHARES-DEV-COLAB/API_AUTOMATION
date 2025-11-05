@@ -38,7 +38,9 @@ class Login(Resource):
             return {"ok": False, "error": str(err) if err else "unauthorized"}, 401
 
         ok_attr, attrs, _ = buscar_atributos(usuario, senha)
-        claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail")} if ok_attr and attrs else {}
+        print(attrs)
+        print(ok_attr)
+        claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail"),"department": attrs.get("department"),"description": attrs.get("description") } if ok_attr and attrs else {}
 
         identity =  usuario
 

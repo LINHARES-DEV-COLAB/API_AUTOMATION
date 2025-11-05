@@ -179,29 +179,75 @@ def carregar_dataframe(xlsx_path: str | Path, sheet_name: str) -> pd.DataFrame:
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
-def mapear_emps_para_nfs(xlsx_path: str | Path, sheet_name: str = "FIDC Contas a pagar.") -> OrderedDict[str, list[str]]:
-    df = carregar_dataframe(xlsx_path, sheet_name)
+# No seu fidc_excel_integration.py
+import pandas as pd
+import logging
 
-    # localizar colunas EMP e Nota Fiscal (variações comuns)
-    emp_col = next((c for c in df.columns if c.lower() == "emp"), None)
-    nf_col  = next((c for c in df.columns if c.lower() in
-                   ["nota fiscal","nº nota fiscal","numero nota fiscal","número nota fiscal","nf","nfe","nf-e"]), None)
-    if not emp_col or not nf_col:
-        raise ValueError("Colunas 'EMP' e/ou 'Nota Fiscal' não encontradas.")
+logger = logging.getLogger(__name__)
 
-    emps_ordem = []
-    seen = set()
-    for e in df[emp_col].astype(object).map(_norm):
-        if e and e not in seen:
-            seen.add(e); emps_ordem.append(e)
+# APP/Core/fidc_excel_integration.py
 
-    mapa = OrderedDict()
-    for emp in emps_ordem:
-        linhas = df[df[emp_col].astype(object).map(_norm) == emp]
-        nfs = []
-        for v in linhas[nf_col]:
-            nv = _norm(v)
-            if nv and nv not in nfs:
-                nfs.append(nv)
-        mapa[emp] = nfs
-    return mapa
+def mapear_emps_para_nfs(caminho_arquivo, sheet_name):
+    """
+    Mapeia empresas para NFs a partir de um arquivo Excel
+    """
+    try:
+        logger.info(f"📖 Lendo arquivo Excel: {caminho_arquivo}")
+        logger.info(f"📋 Planilha: {sheet_name}")
+        
+        df = pd.read_excel(caminho_arquivo, sheet_name=sheet_name)
+        logger.info(f"✅ Excel carregado. Colunas: {list(df.columns)}")
+        logger.info(f"📊 Total de linhas: {len(df)}")
+        
+        # ⭐ DEBUG: Mostra as primeiras linhas para ver os dados
+        logger.info("🔍 Primeiras 5 linhas do DataFrame:")
+        for i in range(min(5, len(df))):
+            logger.info(f"   Linha {i}: {dict(df.iloc[i])}")
+        
+        # ⭐ CORREÇÃO: Verifica nomes alternativos para as colunas
+        coluna_empresa = None
+        coluna_nf = None
+        
+        # Procura a coluna de empresa
+        for col in df.columns:
+            col_lower = str(col).lower().strip()
+            if col_lower in ['empresa', 'emp', 'loja', 'revenda']:
+                coluna_empresa = col
+                break
+        
+        # Procura a coluna de nota fiscal
+        for col in df.columns:
+            col_lower = str(col).lower().strip()
+            if any(x in col_lower for x in ['nota fiscal', 'nota', 'nf', 'nfe']):
+                coluna_nf = col
+                break
+        
+        if not coluna_empresa or not coluna_nf:
+            logger.error(f"❌ Colunas não encontradas. Empresa: {coluna_empresa}, NF: {coluna_nf}")
+            logger.error(f"❌ Colunas disponíveis: {list(df.columns)}")
+            raise ValueError("Colunas 'Empresa' e 'Nota Fiscal' não encontradas")
+        
+        logger.info(f"✅ Usando coluna Empresa: '{coluna_empresa}'")
+        logger.info(f"✅ Usando coluna Nota Fiscal: '{coluna_nf}'")
+        
+        # Limpa dados
+        df = df.dropna(subset=[coluna_empresa, coluna_nf])
+        df[coluna_empresa] = df[coluna_empresa].astype(str).str.strip()
+        df[coluna_nf] = df[coluna_nf].astype(str).str.strip()
+        
+        # ⭐ DEBUG: Mostra valores únicos de empresas
+        empresas_unicas = df[coluna_empresa].unique()
+        logger.info(f"🏪 Empresas encontradas no Excel: {list(empresas_unicas)}")
+        
+        # Agrupa NFs por empresa
+        mapa = df.groupby(coluna_empresa)[coluna_nf].apply(list).to_dict()
+        
+        logger.info(f"📈 Mapeamento concluído: {len(mapa)} empresas encontradas")
+        for emp, nfs in mapa.items():
+            logger.info(f"   {emp}: {len(nfs)} NFs - Primeiras 3: {nfs[:3]}")
+        
+        return mapa
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar Excel: {e}")
+        raise

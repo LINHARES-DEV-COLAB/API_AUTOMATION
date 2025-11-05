@@ -1,13 +1,15 @@
+# APP/Services/pan_service.py - VERSÃO COMPLETA E IMPLEMENTADA
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
 import re
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 import oracledb
 import os
+from APP.Interfaces.automation_interface import AutomationCommand
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +26,72 @@ class ResultadoPan:
             "VALOR": f"{self.valor:.2f}".replace('.', ',')
         }
 
-class PanService:
+class PanService(AutomationCommand):
     def __init__(self):
         self.base_dir_rede = r"\\172.17.67.14\Ares Motos\controladoria\financeiro\06.CONTAS A RECEBER\11.RELATÓRIOS BANCO PAN"
+        print("✅ PanService inicializado")
+    
+    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
+        """Valida se os parâmetros necessários estão presentes"""
+        print("🔍 Validando parâmetros para PAN...")
+        
+        required_params = ['arquivo_excel']
+        for param in required_params:
+            if param not in parameters:
+                print(f"❌ Parâmetro obrigatório faltando: {param}")
+                return False
+        
+        # Verifica se o arquivo existe
+        arquivo_path = parameters['arquivo_excel']
+        if not os.path.exists(arquivo_path):
+            print(f"❌ Arquivo não encontrado: {arquivo_path}")
+            return False
+            
+        print("✅ Parâmetros válidos para PAN")
+        return True
+    
+    def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Executa a automação PAN com os parâmetros fornecidos"""
+        print("🚀 Executando automação PAN...")
+        
+        try:
+            arquivo_excel = parameters.get('arquivo_excel')
+            data_param = parameters.get('data')
+            
+            print(f"📁 Arquivo: {arquivo_excel}")
+            print(f"📅 Data: {data_param}")
+            
+            # Chama o método apropriado baseado na data
+            if data_param:
+                resultados = self.processar_extrato_com_data(arquivo_excel, data_param)
+            else:
+                resultados = self.processar_extrato(arquivo_excel)
+            
+            # Converte resultados para dicionário
+            resultados_dict = [resultado.to_dict() for resultado in resultados]
+            
+            print(f"✅ PAN concluído. {len(resultados_dict)} registros processados")
+            
+            return {
+                "status": "completed",
+                "resultados": resultados_dict,
+                "total_processado": len(resultados_dict),
+                "mensagem": f"Processados {len(resultados_dict)} registros do PAN com sucesso"
+            }
+            
+        except Exception as e:
+            print(f"❌ Erro na execução do PAN: {e}")
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"❌ Traceback: {error_trace}")
+            
+            return {
+                "status": "error",
+                "erro": str(e),
+                "traceback": error_trace
+            }
     
     def processar_extrato(self, caminho_arquivo: str, data_param: str = None) -> List[ResultadoPan]:
-
         try:
             print(f"\n" + "="*60)
             print("🔍 INICIANDO PROCESSAMENTO DO EXTRATO PAN")
@@ -167,7 +229,6 @@ class PanService:
             return []
     
     def _converter_valor_para_float(self, valor) -> Optional[float]:
-
         if pd.isna(valor):
             return None
         
@@ -209,11 +270,9 @@ class PanService:
             # Converte para float
             return float(valor_str)
         except Exception as e:
-            # print(f"      💥 Erro na conversão de '{valor}': {e}")
             return None
         
     def _buscar_arquivo_por_valor(self, valor: float, data_param: str = None) -> Optional[Path]:
-
         datas_busca = self._obter_datas_para_busca(data_param)
         
         print(f"   🔍 Buscando arquivo para R$ {valor:,.2f}")
@@ -255,7 +314,6 @@ class PanService:
         return None
         
     def _obter_datas_para_busca(self, data_param: str = None) -> List[str]:
-
         if data_param:
             try:
                 data_principal = datetime.strptime(data_param, "%d-%m-%Y")
@@ -317,7 +375,6 @@ class PanService:
             return False
     
     def _valor_no_conteudo_arquivo(self, arquivo: Path, valor: float, tolerancia: float = 0.10) -> bool:
-
         try:
             print(f"      📖 LENDO CONTEÚDO COMPLETO DO ARQUIVO: {arquivo.name}")
             
@@ -403,7 +460,6 @@ class PanService:
             return False
     
     def _extrair_chassi_do_relatorio(self, arquivo: Path, valor: float) -> Optional[str]:
-
         try:
             df = pd.read_excel(arquivo)
             
@@ -445,7 +501,6 @@ class PanService:
             return None
     
     def _consultar_banco_dados(self, chassi: str, valor: float) -> Optional[ResultadoPan]:
-
         conn = None
         try:
             # Configuração da conexão Oracle
@@ -579,7 +634,6 @@ class PanService:
                 conn.close()
     
     def _debug_conteudo_arquivo(self, arquivo: Path, max_linhas: int = 5):
-
         try:
             print(f"\n      🧪 DEBUG DO ARQUIVO: {arquivo.name}")
             planilhas = pd.read_excel(arquivo, sheet_name=None, engine='openpyxl')
@@ -601,7 +655,6 @@ class PanService:
             print(f"         ❌ Erro no debug: {e}")
 
     def processar_extrato_com_data(self, caminho_arquivo: str, data_busca: str) -> List[ResultadoPan]:
-      
         try:
             print(f"\n" + "="*60)
             print(f"🔍 INICIANDO PROCESSAMENTO DO EXTRATO PAN")
@@ -667,7 +720,6 @@ class PanService:
             raise
     
     def _buscar_arquivo_por_valor_com_data(self, valor: float, data_busca: str) -> Optional[Path]:
-
         print(f"   🔍 Buscando arquivo para R$ {valor:,.2f}")
         print(f"   📅 DATA ESPECÍFICA: {data_busca}")
         

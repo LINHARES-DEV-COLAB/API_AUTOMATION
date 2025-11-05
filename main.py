@@ -12,26 +12,24 @@ from APP.Controllers.solicitacao_carga_controller import solicitacao_carga_ns
 from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_honda_ns
 from APP.Controllers.baixa_arquivos_cnh_controller import baixa_arquivos_cnh_honda_ns
 from APP.Controllers.preparacao_baixas_controller import preparacao_baixas_ns
-from APP.Controllers.pan_controller import baixas_pan_ns
 from APP.Controllers.abrir_driver_controller import abrir_driver_ns
-from APP.Controllers.fidc_controller import fidc_ns
 from APP.Controllers.automation_controller import auto_ns
 from APP.Config.supa_config import init_db, db
 from sqlalchemy import text
 import logging
+
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = BASE_DIR / "instance"             # <- define
 INSTANCE_DIR.mkdir(parents=True, exist_ok=True) 
 
 def create_app(test_config=None):
-    """
-    Factory function para criar e configurar a aplicação Flask
-    """
-    # Criar instância do Flask
+
     app = Flask(__name__, 
                 instance_relative_config=True, 
-                instance_path=str(INSTANCE_DIR))
+            instance_path=str(INSTANCE_DIR))
+    
+
     init_db(app)
     # Configurações básicas
     app.config.from_mapping(
@@ -45,7 +43,7 @@ def create_app(test_config=None):
         
         # Security
         SECRET_KEY=os.getenv("SECRET_KEY", "dev-secret-key"),
-        MAX_CONTENT_LENGTH=50 * 1024 * 1024,  # 50MB
+        MAX_CONTENT_LENGTH=50 * 1024 * 1024,
     )
     
     # Configuração de teste (se for o caso)
@@ -85,7 +83,6 @@ def _initialize_extensions(app):
 
 
 def _configure_api(app):
-    """Configurar Flask-RESTX API"""
     authorizations = {
         "Bearer Auth": {
             "type": "apiKey",
@@ -107,12 +104,10 @@ def _register_namespaces(api):
     api.add_namespace(auto_ns, path="/automation")
     api.add_namespace(auth_ns, path="/auth")
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
-    api.add_namespace(baixas_pan_ns, path="/baixas-pan")
     api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
     api.add_namespace(baixa_arquivos_cnh_honda_ns, path="/baixa-arquivos-cnh-honda")
     api.add_namespace(preparacao_baixas_ns, path="/preparacao-baixas")
     api.add_namespace(abrir_driver_ns, path="/abrir-driver")
-    api.add_namespace(fidc_ns, path="/fidc")
 
 def _configure_cors(app):
     """Configurar CORS"""
@@ -208,7 +203,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
     host = os.getenv("HOST", "0.0.0.0")
     debug = os.getenv("FLASK_DEBUG", "True").lower() == "true"
-    
+     
     print(f"🚀 Iniciando Automations API...")
     print(f"📍 Host: {host}")
     print(f"🔧 Port: {port}")

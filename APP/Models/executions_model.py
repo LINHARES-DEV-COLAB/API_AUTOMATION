@@ -1,5 +1,7 @@
 from datetime import datetime
 from APP.Config.supa_config import db
+from APP.Models.user_model import User
+
 
 class Execution(db.Model):
     __tablename__ = "executions"
