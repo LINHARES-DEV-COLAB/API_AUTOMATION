@@ -323,10 +323,6 @@ def cria_arquivo_log(loja: str, logs: list,
     # utf-8-sig garante visualização correta até no Bloco de Notas
     with open(path_file, 'w', encoding='utf-8-sig', newline='\n') as f:
         f.write(texto)
-    
-    path_file = os.path.join(r'\\fileserver\tic\Processos\Pauline - Processos\Honda - CDC\Logs', f'log_loja_{loja}_{hoje}.txt')
-    with open(path_file, 'w', encoding='utf-8-sig', newline='\n') as f:
-        f.write(texto)
 
 
 def cria_indicador_de_tempo_execucao(
@@ -707,9 +703,9 @@ def conciliacao_cdc_honda_main(lojas: str):
     driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
 
     url = 'https://www3.honda.com.br/corp/ihs/portal/#/login'
-    driver.get(url)  # Entra no site do IHS
 
     for user in usuarios:
+        driver.get(url)  # Entra no site do IHS
         try:
 
 
@@ -732,6 +728,8 @@ def conciliacao_cdc_honda_main(lojas: str):
             prosseguir = wdw.until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.div-token center button.btn-default.btn.button-token'))
             )
+
+            sleep(2)
 
             prosseguir.click()
 

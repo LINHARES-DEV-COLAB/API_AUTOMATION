@@ -7,9 +7,7 @@ from tkinter import messagebox
 from selenium import webdriver
 from dotenv import load_dotenv
 from pathlib import Path as P
-from time import sleep
 import threading
-import pyautogui
 import oracledb
 import os
 
@@ -49,7 +47,7 @@ def config_webdriver_chrome(PASTA_DOWNLOADS):
         
         driver = webdriver.Chrome(service=service, options=options)
         
-        wdw = WebDriverWait(driver, 180)
+        wdw = WebDriverWait(driver, 300)
         
         driver.maximize_window()
         
@@ -64,22 +62,11 @@ def configurar_extensao(driver):
     url = 'https://chromewebstore.google.com/detail/rektcaptcha-recaptcha-sol/bbdhfoclddncoaomddgkaaphcnddbpdh?hl=pt-BR&utm_source=ext_sidebar'
     driver.get(url)
 
-    pyautogui.PAUSE = 3
-
-    sleep(3)
-    pyautogui.click(1211, 294, duration=1)  # Clicar em adicionar a extensão ao Chrome
-
-    sleep(3)
-    pyautogui.click(829, 245, duration=1)
-
-    sleep(6)
-    pyautogui.click(1422, 61, duration=1)  # Clica para configurar a extensão
-    pyautogui.click(1221, 216, duration=1)
-    pyautogui.click(1348, 179, duration=1)
-    pyautogui.click(1344, 272, duration=1)
-    pyautogui.click(1342, 410, clicks=2, duration=1)
-    pyautogui.write('2000')
-    pyautogui.click(865, 390, duration=1)
+    resposta = True
+    while resposta:
+        resposta = messagebox.askyesno(title='Extensão', message='Você já adicionou a extensão?')
+        if resposta: break
+        continue
 
 wdw = None
 PASTA_DOWNLOADS = None

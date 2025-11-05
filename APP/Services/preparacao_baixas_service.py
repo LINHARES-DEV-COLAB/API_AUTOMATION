@@ -89,15 +89,10 @@ def busca_dados_db_por_um(empresa, titulo):
                 AND PAGAR_RECEBER = 'R'
                 AND EMPRESA = {empresa}
                 AND BANCO = 900
-                AND ORIGEM IN (1258, 1282)
-                AND DTA_EMISSAO = CASE
-                    WHEN TO_CHAR(SYSDATE - 1, 'DY', 'NLS_DATE_LANGUAGE=ENGLISH') = 'SUN'
-                        THEN TRUNC(SYSDATE) - 3  -- sexta-feira
-                    ELSE TRUNC(SYSDATE) - 1      -- dia anterior normal
-                END'''
+                AND ORIGEM IN (1258, 1282)'''
         )
 
-        return cur.fetchone()
+        return cur.fetchall()
     finally:
         cur.close()
         conn.close()
@@ -184,19 +179,21 @@ def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
             ).split('-')[0]
             numeros_nota_linx[nota.strip()] = dados[4]
         
-        print(numeros_nota_linx)
-        print(numeros_notas_honda.to_list())
+        vistos = set()  # armazena pares (titulo, origem)
 
         for titulo, valor in zip(numeros_notas_honda, valores_honda_comparar):
             if titulo not in numeros_nota_linx:
                 nota_nao_paga = busca_dados_db_por_um(empresa=empresa, titulo=titulo)
-                print(nota_nao_paga)
-                print(titulo)
-                if nota_nao_paga:
-                    titulo_db   = nota_nao_paga[0]
-                    duplicata   = nota_nao_paga[1]
-                    valor_db    = nota_nao_paga[2]
-                    origem_code = nota_nao_paga[-2]
+                for nota in nota_nao_paga:
+                    titulo_db   = nota[0]
+                    duplicata   = nota[1]
+                    valor_db    = nota[2]
+                    origem_code = nota[-2]
+                    origem_nome = 'CNH' if origem_code == 1258 else 'Plano Legal'
+                    # Se já processou essa combinação, pula
+                    if (titulo_db, origem_nome) in vistos:
+                        continue
+                    vistos.add((titulo_db, origem_nome))
 
                     tipo_ajuste = compara_valores(valor_db=valor_db, valor_honda=valor)
                     titulos.append(titulo_db)
@@ -204,7 +201,7 @@ def verifica_dados_linx(loja: str, dir_path: str | os.PathLike):
                     valores_linx.append(parse_valor_string(valor_db))
                     valores_honda.append(parse_valor_string(valor))
                     tipos_ajustes.append(tipo_ajuste)
-                    origens.append('CNH' if origem_code == 1258 else 'Plano Legal')
+                    origens.append(origem_nome)
 
         # 4) DataFrames de saída
         df_csv = pd.DataFrame({
