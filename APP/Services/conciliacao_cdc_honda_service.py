@@ -606,7 +606,7 @@ def _parse_param_lojas(lojas_param: str) -> List[str]:
     vistos = set()
     ordem_canonica: List[str] = []
 
-    for token in lojas_param.split(","):
+    for token in lojas_param.split(" ,"):
         key = _norm_key(token)
         if not key:
             continue
