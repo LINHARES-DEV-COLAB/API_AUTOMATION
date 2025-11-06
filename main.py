@@ -1,3 +1,4 @@
+from concurrent.futures import thread
 from datetime import timedelta
 import os
 from APP.Config.supa_config import init_db
@@ -6,7 +7,6 @@ from flask import Flask, redirect, jsonify, request
 from flask_cors import CORS
 from flask_restx import Api
 from flask_jwt_extended import JWTManager
-from APP.Services import pan_service
 from APP.Controllers.auth_controller import auth_ns
 from APP.Controllers.solicitacao_carga_controller import solicitacao_carga_ns
 from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_honda_ns
@@ -17,8 +17,10 @@ from APP.Controllers.automation_controller import auto_ns
 from APP.Config.supa_config import init_db, db
 from sqlalchemy import text
 import logging
+import os, uuid, time, threading, tempfile
+from concurrent.futures import ThreadPoolExecutor
 
-
+EXECUTOR = ThreadPoolExecutor(max_workers=4)
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = BASE_DIR / "instance"             # <- define
 INSTANCE_DIR.mkdir(parents=True, exist_ok=True) 
@@ -29,6 +31,66 @@ def create_app(test_config=None):
                 instance_relative_config=True, 
             instance_path=str(INSTANCE_DIR))
     
+    class ExecutionStore:
+        def __init__(self):
+            self._lock = threading.Lock()
+            self._data = {}  # exec_id -> dict
+
+        def create(self):
+            exec_id = str(uuid.uuid4())
+            with self._lock:
+                self._data[exec_id] = {
+                    "status": "queued",
+                    "logs": [],
+                    "started_at": None,
+                    "finished_at": None,
+                    "output": None,
+                    "error": None,
+                }
+            return exec_id
+
+        def set(self, exec_id, **fields):
+            with self._lock:
+                if exec_id in self._data:
+                    self._data[exec_id].update(fields)
+
+        def append_log(self, exec_id, msg):
+            with self._lock:
+                if exec_id in self._data:
+                    ts = time.strftime('%H:%M:%S')
+                    self._data[exec_id]["logs"].append(f"{ts} {msg}")
+
+        def get(self, exec_id):
+            with self._lock:
+                return self._data.get(exec_id)
+
+    EXEC = ExecutionStore()
+
+    # (opcional) lock por automação para evitar concorrência da mesma automação
+    _AUTO_LOCKS = {}  # automation_id -> threading.Lock()
+    def _get_auto_lock(automation_id):
+        _AUTO_LOCKS.setdefault(automation_id, threading.Lock())
+        return _AUTO_LOCKS[automation_id]
+    
+    def _run_job(exec_id, automation_id, params, file_path_or_none, controller_callable):
+        EXEC.set(exec_id, status="running", started_at=time.time())
+        EXEC.append_log(exec_id, f"Automation: {automation_id}")
+        try:
+            # Se NÃO puder concorrer a mesma automação, use lock:
+            with _get_auto_lock(automation_id):
+                result = controller_callable(automation_id, params, file_path_or_none)
+
+            EXEC.set(exec_id, status="done", finished_at=time.time(), output=result)
+            EXEC.append_log(exec_id, "Finished with success.")
+        except Exception as e:
+            EXEC.set(exec_id, status="failed", finished_at=time.time(), error=str(e))
+            EXEC.append_log(exec_id, f"ERROR: {e}")
+        finally:
+            if file_path_or_none and os.path.exists(file_path_or_none):
+                try:
+                    os.remove(file_path_or_none)
+                except:
+                    pass
 
     init_db(app)
     # Configurações básicas
@@ -110,24 +172,36 @@ def _register_namespaces(api):
     api.add_namespace(abrir_driver_ns, path="/abrir-driver")
 
 def _configure_cors(app):
-    """Configurar CORS"""
     CORS(
         app,
         resources={
-            r"/*": {
+            r"/automation/*": {
                 "origins": [
                     "https://liliauto.flutterflow.app",
-                    "http://172.17.67.19:8982",
+                    "http://127.0.0.1:5500",
+                    "http://localhost:5500",
                     "http://localhost:8982",
-                    r"http://localhost:\d+"
+                    r"http://localhost:\d+",
                 ],
-                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                "expose_headers": ["Authorization"],
+                "allow_headers": ["Authorization", "authorization", "Content-Type", "X-Requested-With"],
+                "expose_headers": ["Authorization", "Content-Type"],
+                "supports_credentials": False,
             }
         },
-        supports_credentials=True,
+        supports_credentials=False,
     )
+
+    @app.after_request
+    def _add_cors_on_all(resp):
+        origin = request.headers.get("Origin", "")
+        if origin in ("http://127.0.0.1:5500", "http://localhost:5500"):
+            resp.headers.setdefault("Access-Control-Allow-Origin", origin)
+            resp.headers.setdefault("Vary", "Origin")
+            resp.headers.setdefault("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With")
+            resp.headers.setdefault("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            resp.headers.setdefault("Access-Control-Expose-Headers", "Authorization, Content-Type")
+        return resp
 
 def _register_routes(app):
     """Registrar rotas básicas da aplicação"""
@@ -215,4 +289,4 @@ if __name__ == "__main__":
     print(f"📁 Instance Dir: {INSTANCE_DIR}")
 
     
-    app.run(port=port, host=host, debug=debug)
+    app.run(port=port, host=host, debug=debug, threaded=True)

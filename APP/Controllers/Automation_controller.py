@@ -5,6 +5,7 @@ from click import Parameter
 from flask import current_app, request
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy.exc import SQLAlchemyError
+from APP import Data
 from APP.Config.supa_config import db
 from APP.Models import executions_model
 from APP.protected_resource import ProtectedResource
@@ -14,7 +15,7 @@ from APP.Models.run_model import Run
 from flask_restx import reqparse
 from werkzeug.datastructures import FileStorage
 from APP.Services.execution_service import ExecutionService
-from APP.Models.executions_model import Execution  # Ou onde está seu model
+from APP.Models.executions_model import Execution  
 
 
 
@@ -72,72 +73,87 @@ run_input_model = auto_ns.model("RunInput", {
 
 # NO automation_controller.py - ATUALIZE o upload_parser:
 
-upload_parser = reqparse.RequestParser()
-upload_parser.add_argument(
-    'arquivo_excel', 
-    type=FileStorage, 
-    location='files', 
-    required=False,  # ← Agora opcional
-    help='Arquivo Excel (opcional para algumas automações)'
-)
-upload_parser.add_argument(
-    'lojas', 
-    type=str, 
-    location='form', 
-    required=False,
-    action='split',
-    help='Lista de lojas para processar (opcional)'
-)
-upload_parser.add_argument(
-    'data', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='Data específica para processamento (opcional)'
-)
-upload_parser.add_argument(
-    'url', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='URL para acessar (opcional)'
-)
-upload_parser.add_argument(
-    'pasta_destino', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='Pasta de destino para downloads (opcional)'
-)
-upload_parser.add_argument(
-    'data_inicio', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='Data de início do período (opcional)'
-)
-upload_parser.add_argument(
-    'data_fim', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='Data de fim do período (opcional)'
-)
-upload_parser.add_argument(
-    'filial', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='Filial específica (opcional)'
-)
-upload_parser.add_argument(
-    'modo', 
-    type=str, 
-    location='form', 
-    required=False,
-    help='Modo de execução (opcional)'
-)
-# Adicione outros parâmetros conforme necessário
+# upload_parser = reqparse.RequestParser()
+# upload_parser.add_argument(
+#     'arquivo_excel', 
+#     type=FileStorage, 
+#     location='files', 
+#     required=False,  # ← Agora opcional
+#     help='Arquivo Excel (opcional para algumas automações)'
+# )
+# upload_parser.add_argument(
+#     'lojas', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     action='split',
+#     help='Lista de lojas para processar (opcional)'
+# )
+# upload_parser.add_argument(
+#     'data', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='Data específica para processamento (opcional)'
+# )
+# upload_parser.add_argument(
+#     'url', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='URL para acessar (opcional)'
+# )
+# upload_parser.add_argument(
+#     'pasta_destino', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='Pasta de destino para downloads (opcional)'
+# )
+# upload_parser.add_argument(
+#     'data_inicio', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='Data de início do período (opcional)'
+# )
+# upload_parser.add_argument(
+#     'data_fim', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='Data de fim do período (opcional)'
+# )
+# upload_parser.add_argument(
+#     'filial', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='Filial específica (opcional)'
+# )
+# upload_parser.add_argument(
+#     'modo', 
+#     type=str, 
+#     location='form', 
+#     required=False,
+#     help='Modo de execução (opcional)'
+# )
+# # Adicione outros parâmetros conforme necessário
+
+# NO automation_controller.py - SUBSTITUA o upload_parser por:
+
+run_input_model = auto_ns.model("RunInput", {
+    "arquivo_excel": fields.String(required=False, description="Base64 do arquivo Excel (opcional)"),
+    "lojas": fields.List(fields.String, required=False, description="Lista de lojas para processar"),
+    "data": fields.String(required=False, description="Data específica para processamento"),
+    "url": fields.String(required=False, description="URL para acessar"),
+    "pasta_destino": fields.String(required=False, description="Pasta de destino para downloads"),
+    "data_inicio": fields.String(required=False, description="Data de início do período"),
+    "data_fim": fields.String(required=False, description="Data de fim do período"),
+    "filial": fields.String(required=False, description="Filial específica"),
+    "modo": fields.String(required=False, description="Modo de execução"),
+    # Adicione outros parâmetros conforme necessário
+})
 
 # ===== /automation/departments ===== (NÃO use jsonify aqui)
 @auto_ns.route("/departments")
@@ -199,7 +215,7 @@ class Automations(ProtectedResource):  # use ProtectedResource se exigir JWT
 
 @auto_ns.route("/automations/<string:automation_id>/run")
 class RunAutomation(ProtectedResource):
-    @auto_ns.expect(upload_parser)
+    @auto_ns.expect(run_input_model)  # Use o modelo JSON em vez do parser
     @auto_ns.marshal_with(run_model, code=HTTPStatus.ACCEPTED, envelope=None)
     def post(self, automation_id: str):
         execution_id = None
@@ -217,63 +233,60 @@ class RunAutomation(ProtectedResource):
             print(f"📝 Script Path: {automation.script_path}")
             print(f"⚡ Tipo Execução: {automation.type}")
             
-            # 2. PROCESSAR PARÂMETROS (CÓDIGO NOVO - 100% SEGURO)
-            if request.content_type and 'multipart/form-data' in request.content_type:
-                args = upload_parser.parse_args()
+            # 2. PROCESSAR PARÂMETROS DO JSON BODY
+            json_data = request.get_json() or {}
+            print(f"📦 JSON recebido: {json_data}")
+            
+            # Processa arquivo em base64 (se fornecido)
+            arquivo_excel_b64 = json_data.get('arquivo_excel')
+            if arquivo_excel_b64:
+                import tempfile
+                import os
+                import base64
                 
-                # Processa arquivo
-                arquivo_excel = args['arquivo_excel']
-                if arquivo_excel:
-                    import tempfile
-                    import os
+                try:
+                    # Decodifica base64 para arquivo temporário
+                    file_data = base64.b64decode(arquivo_excel_b64)
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
-                        arquivo_excel.save(temp_file.name)
+                        temp_file.write(file_data)
                         parameters["arquivo_excel"] = temp_file.name
                         temp_file_path = temp_file.name
                         print(f"✅ Arquivo salvo: {temp_file.name}")
-                
-                string_params = []
-
-                for param in string_params:
-                    value = args.get(param)
-                    if value is not None:
-                        parameters[param] = value
-                        print(f"✅ Parâmetro {param}: {value}")
-                
-                print(f"✅ Todos os parâmetros: {parameters}")
-                # PROCESSAMENTO DE LOJAS - CÓDIGO NOVO E SEGURO
-                lojas_input = args.get('lojas')
-                print(f"🔍 Lojas input raw: {lojas_input} (tipo: {type(lojas_input)})")
-                
-                # Garantia absoluta de que lojas será uma lista
-                lojas = []
-                if lojas_input is not None:
-                    if isinstance(lojas_input, str) and lojas_input.strip():
-                        # Se for string não vazia, separa por vírgula
-                        lojas = [loja.strip() for loja in lojas_input.split(',') if loja.strip()]
-                    elif isinstance(lojas_input, list):
-                        # Se for lista, filtra itens válidos
-                        lojas = []
-                        for item in lojas_input:
-                            if item is not None:
-                                item_str = str(item).strip()
-                                if item_str:
-                                    lojas.append(item_str)
-                
-                parameters["lojas"] = lojas
-                print(f"✅ Lojas processadas: {lojas}")
-                
-                # Processa data (para PAN)
-                data_param = args.get('data')
-                if data_param:
-                    parameters["data"] = data_param
-                    print(f"✅ Data: {data_param}")
+                except Exception as e:
+                    print(f"❌ Erro ao processar arquivo base64: {e}")
+                    return {"error": "Arquivo base64 inválido"}, 400
+            
+            # Processa lista de lojas
+            lojas_input = json_data.get('lojas', [])
+            print(f"🔍 Lojas input: {lojas_input} (tipo: {type(lojas_input)})")
+            
+            # Garantia absoluta de que lojas será uma lista
+            lojas = []
+            if lojas_input:
+                if isinstance(lojas_input, list):
+                    lojas = [str(loja).strip() for loja in lojas_input if loja is not None and str(loja).strip()]
+                elif isinstance(lojas_input, str) and lojas_input.strip():
+                    lojas = [loja.strip() for loja in lojas_input.split(',') if loja.strip()]
+            
+            parameters["lojas"] = lojas
+            print(f"✅ Lojas processadas: {lojas}")
+            
+            # Processa outros parâmetros string
+            string_params = ['data', 'url', 'pasta_destino', 'data_inicio', 'data_fim', 'filial', 'modo']
+            for param in string_params:
+                value = json_data.get(param)
+                if value is not None:
+                    parameters[param] = str(value)
+                    print(f"✅ Parâmetro {param}: {value}")
+            
+            print(f"✅ Todos os parâmetros: {parameters}")
             
             # 3. CRIAR EXECUÇÃO
             execution_id = ExecutionService.create_execution(
                 automation_id=automation_id,
-                triggered_by=getattr(request, 'user_id', 'system')
+                triggered_by=getattr(request, 'user_id', Data.user_system())
             )
+
             print(f"📝 Execução criada: {execution_id}")
             
             # 4. FACTORY - CÓDIGO SIMPLIFICADO
@@ -407,5 +420,6 @@ class AutomationStatus(ProtectedResource):
             db.session.rollback()
             return {"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR
     
+
 
 
