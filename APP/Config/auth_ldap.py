@@ -22,10 +22,7 @@ def _server() -> Server:
     return Server(LDAP_HOST, port=LDAP_PORT, use_ssl=LDAP_USE_SSL, get_info=ALL)
 
 def autenticar_upn(usuario: str, senha: str) -> Tuple[bool, Optional[str]]:
-    """
-    Autentica no AD usando UPN (usuario@DOMINIO).
-    Retorna (ok, erro) — erro = None se ok=True.
-    """
+
     if not usuario_autorizado(usuario):
         return False, "Usuário sem permissão de acesso (lista de autorizados)."
 
