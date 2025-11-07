@@ -284,7 +284,7 @@ class RunAutomation(ProtectedResource):
             # 3. CRIAR EXECUÇÃO
             execution_id = ExecutionService.create_execution(
                 automation_id=automation_id,
-                triggered_by=getattr(request, 'user_id', Data.user_system())
+                triggered_by=getattr(request, 'user_id', 'system')
             )
 
             print(f"📝 Execução criada: {execution_id}")
