@@ -9,7 +9,8 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 import oracledb
 import os
-from APP.Interfaces.automation_interface import AutomationCommand
+
+from APP.protected_resource import ProtectedResource
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class ResultadoPan:
             "VALOR": f"{self.valor:.2f}".replace('.', ',')
         }
 
-class PanService(AutomationCommand):
+class PanAutomation:
     def __init__(self):
         self.base_dir_rede = r"\\172.17.67.14\Ares Motos\controladoria\financeiro\06.CONTAS A RECEBER\11.RELATÓRIOS BANCO PAN"
         print("✅ PanService inicializado")

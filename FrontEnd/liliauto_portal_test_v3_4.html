@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>LiLi Auto • Portal (HTML Test Harness v3.4)</title>
+  <title>LiLi Auto • Portal (HTML Test Harness v3.5)</title>
   <style>
     :root{ --bg:#0f172a; --card:#0b1227; --text:#e5e7eb; --muted:#94a3b8;
       --brand:#22d3ee; --surface:#111827; --shadow:0 10px 30px rgba(0,0,0,.25); --radius:16px; }
@@ -54,7 +54,7 @@
     <div class="topbar">
       <div class="logo">
         <img src="https://dummyimage.com/160x40/0b1227/22d3ee.png&text=LiLi+Auto" alt="LiLi Auto"/>
-        <span class="pill">Portal (HTML Test v3.4)</span>
+        <span class="pill">Portal (HTML Test v3.5)</span>
       </div>
       <div class="controls">
         <input id="userInput" class="input" placeholder="usuário (ex.: nome.sobrenome)" value="nome.sobrenome"/>
@@ -77,7 +77,7 @@
           <select id="departments" disabled>
             <option value="">Carregando...</option>
           </select>
-          <small class="helper">GET <code>/automation/departments</code></small>
+          <small class="helper">GET <code>/toFront/departments</code></small>
         </div>
 
         <div class="card w-30">
@@ -86,8 +86,8 @@
           <select id="automations" disabled>
             <option value="">Selecione a área</option>
           </select>
-          <input id="automationsPath" class="input" value="/automation/automations" style="margin-top:12px"/>
-          <small class="helper">GET <code>/automation/automations/{department_id}</code> — o caminho acima é prefixo; o <code>{id}</code> é concatenado automaticamente.</small>
+          <input id="automationsPath" class="input" value="/toFront/automations" style="margin-top:12px"/>
+          <small class="helper">GET <code>/toFront/automations/{department_id}</code></small>
         </div>
       </div>
 
@@ -100,14 +100,14 @@
             <div>
               <label class="pill">Endpoint de execução</label>
               <div class="input" id="execEndpoint" style="height:auto; padding:10px; margin-top:6px">
-                <code>/automation/automations/{automation_id}/run</code>
+                <code>Selecione uma automação</code>
               </div>
-              <small class="helper">Montado automaticamente pelo <b>automation_id</b> selecionado.</small>
+              <small class="helper" id="endpointHelper">Endpoint será definido pela automação selecionada</small>
             </div>
             <div>
               <label class="pill">Parâmetros extras (key=value por linha)</label>
               <textarea id="extraParams" placeholder="ex.: ref_date=2025-11-05&#10;mode=full"></textarea>
-              <small class="helper">Serão enviados no <code>FormData</code> junto com departmentId/lojas/arquivos.</small>
+              <small class="helper">Serão enviados no <code>FormData</code> conforme necessário.</small>
             </div>
           </div>
 
@@ -116,8 +116,7 @@
               <label class="pill">Arquivos (múltiplos)</label><br/>
               <input id="fileInput" type="file" multiple />
               <small class="helper">
-                Para <b>baixas_pan</b> e <b>fidc</b> o primeiro arquivo vai como <code>arquivo_excel</code> (obrigatório).<br/>
-                Todos os arquivos também são enviados como <code>files[]</code>.
+                Para algumas automações específicas que requerem upload de arquivos.
               </small>
             </div>
             <div>
@@ -126,7 +125,8 @@
             </div>
           </div>
 
-          <div id="blkCDC" class="card" style="background:#0a1224; margin-top:16px">
+          <!-- Blocos específicos para cada tipo de automação -->
+          <div id="blkCDC" class="card hidden" style="background:#0a1224; margin-top:16px">
             <h4 style="margin:0 0 12px 0">Conciliação CDC Honda – Filiais</h4>
             <div class="checkbox-col" id="cdcChecks"></div>
             <div class="flex" style="margin-top:16px">
@@ -135,12 +135,24 @@
             </div>
           </div>
 
-          <div id="blkCNH" class="card" style="background:#0a1224; margin-top:16px">
+          <div id="blkCNH" class="card hidden" style="background:#0a1224; margin-top:16px">
             <h4 style="margin:0 0 12px 0">Baixas CNH Honda – Filiais</h4>
             <div class="checkbox-col" id="cnhChecks"></div>
             <div class="flex" style="margin-top:16px">
               <button id="cnhSelectAll">Selecionar Todos</button>
               <button id="cnhClear" class="ghost">Desmarcar Todos</button>
+            </div>
+          </div>
+
+          <div id="blkGeneric" class="card hidden" style="background:#0a1224; margin-top:16px">
+            <h4 style="margin:0 0 12px 0">Parâmetros de Execução</h4>
+            <div class="flex">
+              <input id="genericLojas" class="input" placeholder="Lojas (separadas por vírgula)" style="flex:1"/>
+              <input id="genericUrl" class="input" placeholder="URL (opcional)" style="flex:1"/>
+            </div>
+            <div class="flex" style="margin-top:8px">
+              <input id="genericData" class="input" placeholder="Data (opcional)" style="flex:1"/>
+              <input id="genericPasta" class="input" placeholder="Pasta destino (opcional)" style="flex:1"/>
             </div>
           </div>
 
@@ -189,6 +201,7 @@
   const outputsLog = document.getElementById('outputsLog');
   const historyLog = document.getElementById('historyLog');
   const execInfo = document.getElementById('execInfo');
+  const endpointHelper = document.getElementById('endpointHelper');
 
   const elUser = document.getElementById('userInput');
   const elBase = document.getElementById('baseUrl');
@@ -203,8 +216,25 @@
 
   const blkCDC = document.getElementById('blkCDC');
   const blkCNH = document.getElementById('blkCNH');
+  const blkGeneric = document.getElementById('blkGeneric');
 
-  let automationMap = []; // array of {id,name,raw}
+  // Campos genéricos
+  const genericLojas = document.getElementById('genericLojas');
+  const genericUrl = document.getElementById('genericUrl');
+  const genericData = document.getElementById('genericData');
+  const genericPasta = document.getElementById('genericPasta');
+
+  let automationMap = [];
+
+  // Mapeamento de endpoints específicos
+  const ENDPOINT_MAP = {
+    'conciliacao-cdc-honda': '/conciliacao-cdc-honda',
+    'baixa-arquivos-cnh-honda': '/baixa-arquivos-cnh-honda',
+    'solicitacao-carga': '/solicitacao-carga',
+    'preparacao-baixas': '/preparacao-baixas',
+    'aymore': '/aymore/processar-dados',
+    'abrir-driver': '/abrir-driver'
+  };
 
   const log = (where, msg, obj=null)=>{
     const time = new Date().toLocaleString();
@@ -219,12 +249,14 @@
     }
     where.scrollTop = where.scrollHeight;
   };
+
   const authHeader = ()=>{
     const token = localStorage.getItem(LS_KEYS.jwt) || elJwt.value.trim();
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
+
   const getBase = ()=> (localStorage.getItem(LS_KEYS.baseUrl) || elBase.value.trim() || '');
-  const getAutosPath = ()=> (localStorage.getItem(LS_KEYS.autosPath) || elAutosPath.value.trim() || '/automation/automations');
+  const getAutosPath = ()=> (localStorage.getItem(LS_KEYS.autosPath) || elAutosPath.value.trim() || '/toFront/automations');
 
   const savePersist = ()=>{
     localStorage.setItem(LS_KEYS.user, elUser.value.trim());
@@ -233,15 +265,17 @@
     localStorage.setItem(LS_KEYS.autosPath, elAutosPath.value.trim());
     log(statusLog, '✅ Preferências salvas localmente (LocalStorage).');
   };
+
   const loadPersist = ()=>{
     const u = localStorage.getItem(LS_KEYS.user); if(u) elUser.value = u;
     const b = localStorage.getItem(LS_KEYS.baseUrl); if(b) elBase.value = b;
     const j = localStorage.getItem(LS_KEYS.jwt); if(j) elJwt.value = j;
     const ap = localStorage.getItem(LS_KEYS.autosPath); if(ap) elAutosPath.value = ap;
   };
+
   const clearPersist = ()=>{
     Object.values(LS_KEYS).forEach(k=> localStorage.removeItem(k));
-    elUser.value = 'nome.sobrenome'; elBase.value='http://127.0.0.1:5000'; elJwt.value=''; elAutosPath.value='/automation/automations';
+    elUser.value = 'nome.sobrenome'; elBase.value='http://127.0.0.1:5000'; elJwt.value=''; elAutosPath.value='/toFront/automations';
     log(statusLog, '🔒 Você saiu. Os campos foram limpos.');
   };
 
@@ -262,8 +296,25 @@
   const apiPostForm = async (path, formData)=>{
     const base = getBase();
     const url = base.replace(/\/$/,'') + path;
-    const headers = { ...authHeader() }; // NÃO setar Content-Type manualmente
+    const headers = { ...authHeader() };
     const res = await fetch(url, { method:'POST', headers, body: formData });
+    const text = await res.text();
+    let data = null; try{ data = text ? JSON.parse(text) : null } catch{ data = { raw:text } }
+    if(!res.ok){
+      const err = new Error(`POST ${url} -> ${res.status} ${res.statusText}`);
+      err.status = res.status; err.response = data || text; throw err;
+    }
+    return { res, data };
+  };
+
+  const apiPostJson = async (path, jsonData)=>{
+    const base = getBase();
+    const url = base.replace(/\/$/,'') + path;
+    const res = await fetch(url, { 
+      method:'POST', 
+      headers: { 'Content-Type':'application/json', ...authHeader() },
+      body: JSON.stringify(jsonData)
+    });
     const text = await res.text();
     let data = null; try{ data = text ? JSON.parse(text) : null } catch{ data = { raw:text } }
     if(!res.ok){
@@ -276,7 +327,7 @@
   const loadDepartments = async ()=>{
     elDeps.disabled = true; elDeps.innerHTML = `<option>Carregando...</option>`;
     try{
-      const { data, res } = await apiGet('/automation/departments');
+      const { data, res } = await apiGet('/toFront/departments');
       const items = Array.isArray(data) ? data : (data?.departments || data?.data || data?.items || []);
       elDeps.innerHTML = `<option value="">Selecione...</option>` + items.map(o=>`<option value="${o.id||o.name}">${o.name||o.id}</option>`).join('');
       elDeps.disabled = false;
@@ -294,51 +345,127 @@
   };
 
   const loadAutomations = async (departmentId)=>{
-    elAutos.disabled = true; elAutos.innerHTML = `<option>Carregando...</option>`;
-    const path = buildAutosPath(departmentId);
-    try{
-      const fullUrl = (getBase().replace(/\/$/,'') + path);
-      log(statusLog, 'ℹ️ Automations request (path param)', { url: fullUrl });
-      const { data, res } = await apiGet(path);
-
-      const list = Array.isArray(data) ? data : (data?.automations || data?.data || data?.items || []);
-      automationMap = list.map(o=>{
-        const id = o?.id ?? o?.automation_id ?? o?.code ?? o;
-        const name = o?.name ?? o?.title ?? String(id);
-        return { id: String(id), name: String(name), raw: o };
-      });
-
-      if(automationMap.length === 0){
-        automationMap = [
-          {id:'cdc', name:'Conciliação CDC Honda', raw:{} },
-          {id:'cnh', name:'Baixas CNH Honda', raw:{} },
-          {id:'baixas_pan', name:'Baixas PAN (demo)', raw:{} },
-          {id:'fidc', name:'FIDC (demo)', raw:{} },
-        ];
-      }
-
-      elAutos.innerHTML = `<option value="">Selecione...</option>` + automationMap.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
-      elAutos.disabled = false;
-      updateExecSummary();
-      showHideBlocks();
-      log(statusLog, '✅ Automações carregadas.', { status: res.status, count: automationMap.length });
-    }catch(err){
-      elAutos.innerHTML = `<option value="">Erro ao carregar</option>`;
-      log(statusLog, '❌ Erro ao carregar automações.', { error: String(err), status: err?.status, response: err?.response });
+  elAutos.disabled = true; 
+  elAutos.innerHTML = `<option>Carregando...</option>`;
+  const path = buildAutosPath(departmentId);
+  
+  try{
+    const { data, res } = await apiGet(path);
+    
+    // DEBUG: Log a resposta completa para vermos a estrutura
+    console.log('Resposta da API de automações:', data);
+    
+    // CORREÇÃO: Acessa a propriedade correta baseada no seu backend
+    let list = [];
+    
+    if (data && data.items) {
+      // Se a resposta tem a estrutura { items: [...] }
+      list = data.items;
+    } else if (Array.isArray(data)) {
+      // Se a resposta é diretamente um array
+      list = data;
+    } else if (data && Array.isArray(data.automations)) {
+      // Se a resposta tem a estrutura { automations: [...] }
+      list = data.automations;
+    } else if (data && Array.isArray(data.data)) {
+      // Se a resposta tem a estrutura { data: [...] }
+      list = data.data;
     }
-  };
+    
+    log(statusLog, 'ℹ️ Estrutura da resposta:', { 
+      hasItems: !!data?.items,
+      isArray: Array.isArray(data),
+      itemCount: list.length,
+      keys: data ? Object.keys(data) : 'no data'
+    });
+
+    automationMap = list.map(o=>{
+      const id = o?.id ?? o?.automation_id ?? o?.code ?? 'unknown';
+      const name = o?.name ?? o?.title ?? String(id);
+      const type = o?.type || 'generic';
+      return { 
+        id: String(id), 
+        name: String(name), 
+        type, 
+        raw: o 
+      };
+    });
+
+    // Se não encontrou automações, mostra uma mensagem
+    if (automationMap.length === 0) {
+      elAutos.innerHTML = `<option value="">Nenhuma automação encontrada</option>`;
+      log(statusLog, '⚠️ Nenhuma automação encontrada para este departamento.');
+    } else {
+      elAutos.innerHTML = `<option value="">Selecione uma automação...</option>` + 
+        automationMap.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+    }
+    
+    elAutos.disabled = false;
+    updateExecSummary();
+    showHideBlocks();
+    log(statusLog, '✅ Automações carregadas.', { 
+      status: res.status, 
+      count: automationMap.length,
+      automações: automationMap.map(a => ({ id: a.id, name: a.name }))
+    });
+    
+  }catch(err){
+    elAutos.innerHTML = `<option value="">Erro ao carregar</option>`;
+    log(statusLog, '❌ Erro ao carregar automações.', { 
+      error: String(err), 
+      status: err?.status, 
+      response: err?.response 
+    });
+    
+    // Fallback para desenvolvimento - automações mock
+    automationMap = [
+      {id:'conciliacao-cdc-honda', name:'Conciliação CDC Honda', type:'cdc', raw:{} },
+      {id:'baixa-arquivos-cnh-honda', name:'Baixas CNH Honda', type:'cnh', raw:{} },
+      {id:'solicitacao-carga', name:'Solicitação de Carga CNH', type:'generic', raw:{} },
+      {id:'preparacao-baixas', name:'Preparação de Baixas', type:'generic', raw:{} },
+      {id:'abrir-driver', name:'Abrir Driver', type:'generic', raw:{} },
+    ];
+    
+    elAutos.innerHTML = `<option value="">Selecione uma automação...</option>` + 
+      automationMap.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+    elAutos.disabled = false;
+    updateExecSummary();
+    showHideBlocks();
+  }
+};
 
   const updateExecSummary = ()=>{
     const dep = elDeps.value || '—';
     const autoId = elAutos.value || '—';
     const autoObj = automationMap.find(a=>a.id===autoId);
     const autoName = autoObj?.name || '—';
-    const endpoint = `/automation/automations/${autoId||'{automation_id}'}/run`;
-    document.getElementById('execEndpoint').innerHTML = `<code>${endpoint}</code>`;
+    
+    // Determina o endpoint baseado no ID da automação
+    let endpoint = ENDPOINT_MAP[autoId] || `/toFront/automations/${autoId}/run`;
+    let method = 'POST';
+    let helperText = `Endpoint: ${method} ${endpoint}`;
+
+    // Ajustes específicos para cada automação
+    if (autoId === 'conciliacao-cdc-honda') {
+      endpoint += '/{lojas}';
+      helperText = `Endpoint: POST ${endpoint} - Parâmetro de lojas na URL`;
+    } else if (autoId === 'baixa-arquivos-cnh-honda') {
+      endpoint += '/{lojas}';
+      helperText = `Endpoint: POST ${endpoint} - Parâmetro de lojas na URL`;
+    } else if (autoId === 'solicitacao-carga') {
+      endpoint += '/{lojas}';
+      helperText = `Endpoint: GET ${endpoint} - Parâmetro de lojas na URL`;
+    } else if (autoId === 'abrir-driver') {
+      method = 'GET';
+      helperText = `Endpoint: GET ${endpoint} - Abre instância do driver`;
+    }
+
+    document.getElementById('execEndpoint').innerHTML = `<code>${method} ${endpoint}</code>`;
+    endpointHelper.textContent = helperText;
+    
     execInfo.innerHTML = "";
     log(execInfo, `dep: <b>${dep}</b> • autoId: <b>${autoId}</b> • auto: <b>${autoName}</b>`);
 
-    // habilita/desabilita botão
     btnRun.disabled = !(elDeps.value && elAutos.value);
   };
 
@@ -364,58 +491,126 @@
       return;
     }
 
-    const fd = new FormData();
-    fd.append('departmentId', depId);
+    const autoObj = automationMap.find(a=>a.id===autoId);
+    const autoName = autoObj?.name || '';
 
-    const addArray = (key, values)=> values.forEach(v=> fd.append(key, v));
+    try {
+      let result;
+      
+      // Lógica específica para cada tipo de automação
+      if (autoId === 'conciliacao-cdc-honda') {
+        const lojas = Array.from(document.querySelectorAll('#cdcChecks input[type="checkbox"]:checked')).map(i=>i.value).join(',');
+        if (!lojas) {
+          alert('Selecione pelo menos uma loja para Conciliação CDC Honda.');
+          return;
+        }
+        const path = `/conciliacao-cdc-honda/${encodeURIComponent(lojas)}`;
+        log(statusLog, `🚀 Executando Conciliação CDC Honda...`, { lojas });
+        result = await apiPostJson(path, {});
 
-    const autoName = (automationMap.find(a=>a.id===autoId)?.name || '');
-    if(/Conciliação CDC Honda/i.test(autoName)){
-      const vals = Array.from(document.querySelectorAll('#cdcChecks input[type="checkbox"]:checked')).map(i=>i.value);
-      addArray('branches[]', vals);
-      addArray('lojas[]', vals);
-    }else if(/Baixas CNH Honda/i.test(autoName)){
-      const vals = Array.from(document.querySelectorAll('#cnhChecks input[type="checkbox"]:checked')).map(i=>i.value);
-      addArray('branches[]', vals);
-      addArray('lojas[]', vals);
-    }
+      } else if (autoId === 'baixa-arquivos-cnh-honda') {
+        const lojas = Array.from(document.querySelectorAll('#cnhChecks input[type="checkbox"]:checked')).map(i=>i.value).join(',');
+        if (!lojas) {
+          alert('Selecione pelo menos uma loja para Baixas CNH Honda.');
+          return;
+        }
+        const path = `/baixa-arquivos-cnh-honda/${encodeURIComponent(lojas)}`;
+        log(statusLog, `🚀 Executando Baixas CNH Honda...`, { lojas });
+        result = await apiPostJson(path, {});
 
-    const extras = parseExtraParams();
-    Object.entries(extras).forEach(([k,v])=> fd.append(k, v));
+      } else if (autoId === 'solicitacao-carga') {
+        const lojas = genericLojas.value || Array.from(document.querySelectorAll('#cnhChecks input[type="checkbox"]:checked')).map(i=>i.value).join(',');
+        if (!lojas) {
+          alert('Informe as lojas para Solicitação de Carga.');
+          return;
+        }
+        const path = `/solicitacao-carga/${encodeURIComponent(lojas)}`;
+        log(statusLog, `🚀 Executando Solicitação de Carga...`, { lojas });
+        result = await apiGet(path);
 
-    const files = fileInput.files;
-    for(const file of files){
-      fd.append('files[]', file, file.name);
-    }
-    if((autoId==='baixas_pan' || autoId==='fidc') && files.length>0){
-      fd.append('arquivo_excel', files[0], files[0].name);
-    }
+      } else if (autoId === 'abrir-driver') {
+        log(statusLog, `🚀 Abrindo instância do driver...`);
+        result = await apiGet('/abrir-driver');
 
-    const path = `/automation/automations/${encodeURIComponent(autoId)}/run`;
-    log(statusLog, '🚀 Executando (multipart/form-data)...', { path, fields: [...fd.keys()] });
-    try{
-      const { data, res } = await apiPostForm(path, fd);
-      log(statusLog, '✅ Execução iniciada.', { status: res.status, data });
-      log(historyLog, '🧾 Histórico • Execução registrada.', { endpoint: path, response: data });
+      } else if (autoId === 'preparacao-baixas') {
+        const lojas = genericLojas.value;
+        if (!lojas) {
+          alert('Informe o nome da loja para Preparação de Baixas.');
+          return;
+        }
+        const tipo = extraParams.value.includes('verifica_dados_linx') ? 'verifica_dados_linx' : 'extrair-pdf';
+        const path = `/preparacao-baixas/${tipo}/${encodeURIComponent(lojas)}`;
+        log(statusLog, `🚀 Executando Preparação de Baixas...`, { lojas, tipo });
+        result = await apiPostJson(path, {});
 
-      if(data && (data.files || data.links)){
+      } else if (autoId === 'aymore') {
+        log(statusLog, `🚀 Processando dados Aymore...`);
+        result = await apiPostJson('/aymore/processar-dados', {});
+
+      } else {
+        // Automação genérica via FormData
+        const fd = new FormData();
+        fd.append('departmentId', depId);
+
+        const extras = parseExtraParams();
+        Object.entries(extras).forEach(([k,v])=> fd.append(k, v));
+
+        const files = fileInput.files;
+        for(const file of files){
+          fd.append('files[]', file, file.name);
+        }
+
+        const path = `/toFront/automations/${encodeURIComponent(autoId)}/run`;
+        log(statusLog, '🚀 Executando automação genérica...', { path });
+        result = await apiPostForm(path, fd);
+      }
+
+      const { data, res } = result;
+      log(statusLog, '✅ Execução concluída.', { status: res.status, data });
+      log(historyLog, '🧾 Histórico • Execução registrada.', { automation: autoName, response: data });
+
+      if(data && (data.files || data.links || data.resultado)){
         const out = [];
-        (data.files||[]).forEach(f=> out.push(`<div>Arquivo: <a class="link" href="${f.url}" target="_blank" rel="noopener">${f.name||f.url}</a></div>`));
-        (data.links||[]).forEach(u=> out.push(`<div>Link: <a class="link" href="${u}" target="_blank" rel="noopener">${u}</a></div>`));
+        if(data.files) (data.files||[]).forEach(f=> out.push(`<div>Arquivo: <a class="link" href="${f.url}" target="_blank" rel="noopener">${f.name||f.url}</a></div>`));
+        if(data.links) (data.links||[]).forEach(u=> out.push(`<div>Link: <a class="link" href="${u}" target="_blank" rel="noopener">${u}</a></div>`));
+        if(data.resultado) out.push(`<div>Resultado: ${JSON.stringify(data.resultado)}</div>`);
         outputsLog.insertAdjacentHTML('afterbegin', out.join(''));
       }else{
-        outputsLog.insertAdjacentHTML('afterbegin', `<div>Sem saídas explicitadas pelo back-end.</div>`);
+        outputsLog.insertAdjacentHTML('afterbegin', `<div>Resposta: ${JSON.stringify(data)}</div>`);
       }
+
     }catch(err){
       log(statusLog, '❌ Falha ao executar.', { error: String(err), status: err?.status, response: err?.response });
       alert('Falha ao executar. Veja o log.');
     }
   };
 
+  const showHideBlocks = ()=>{
+    const autoId = elAutos.value;
+    const obj = automationMap.find(a=>a.id===autoId);
+    const name = obj?.name || '';
+
+    // Esconde todos os blocos primeiro
+    blkCDC.classList.add('hidden');
+    blkCNH.classList.add('hidden');
+    blkGeneric.classList.add('hidden');
+
+    // Mostra o bloco apropriado
+    if(/Conciliação CDC Honda/i.test(name) || autoId === 'conciliacao-cdc-honda') {
+      blkCDC.classList.remove('hidden');
+    } else if(/Baixas CNH Honda/i.test(name) || autoId === 'baixa-arquivos-cnh-honda') {
+      blkCNH.classList.remove('hidden');
+    } else if(['solicitacao-carga', 'preparacao-baixas'].includes(autoId)) {
+      blkGeneric.classList.remove('hidden');
+    }
+  };
+
+  // Event Listeners
   document.getElementById('btnSave').addEventListener('click', async ()=>{
     savePersist();
     await loadDepartments();
   });
+
   document.getElementById('btnLogout').addEventListener('click', ()=>{
     clearPersist();
     elDeps.innerHTML = `<option value="">—</option>`; elDeps.disabled = true;
@@ -424,16 +619,24 @@
     execInfo.innerHTML = '';
     updateExecSummary();
   });
+
   elDeps.addEventListener('change', (e)=>{
-    const id = e.target.value; if(id) loadAutomations(id);
+    const id = e.target.value; 
+    if(id) loadAutomations(id);
     updateExecSummary();
   });
-  elAutos.addEventListener('change', ()=>{ updateExecSummary(); showHideBlocks(); });
+
+  elAutos.addEventListener('change', ()=>{ 
+    updateExecSummary(); 
+    showHideBlocks(); 
+  });
 
   btnRun.addEventListener('click', runExecution);
 
+  // Checkboxes para CDC e CNH
   const cdcChecks = document.getElementById('cdcChecks');
   const cnhChecks = document.getElementById('cnhChecks');
+  
   const fillChecks = (el, items)=>{
     el.innerHTML = '';
     items.forEach(v=>{
@@ -442,19 +645,13 @@
       el.appendChild(lab);
     });
   };
+
   document.getElementById('cdcSelectAll').addEventListener('click', ()=> cdcChecks.querySelectorAll('input').forEach(i=> i.checked=true));
   document.getElementById('cdcClear').addEventListener('click', ()=> cdcChecks.querySelectorAll('input').forEach(i=> i.checked=false));
   document.getElementById('cnhSelectAll').addEventListener('click', ()=> cnhChecks.querySelectorAll('input').forEach(i=> i.checked=true));
   document.getElementById('cnhClear').addEventListener('click', ()=> cnhChecks.querySelectorAll('input').forEach(i=> i.checked=false));
 
-  const showHideBlocks = ()=>{
-    const autoId = elAutos.value;
-    const obj = automationMap.find(a=>a.id===autoId);
-    const name = obj?.name || '';
-    blkCDC.classList.toggle('hidden', !/Conciliação CDC Honda/i.test(name));
-    blkCNH.classList.toggle('hidden', !/Baixas CNH Honda/i.test(name));
-  };
-
+  // Inicialização
   (function init(){
     loadPersist();
     const cdc = ['ARES - MOTOS - JUAZEIRO','ARES - MOTOS - CRATO','TERRA SANTA - MOTOS - CANINDÉ','NOVA ONDA - MOTOS - ARACATI'];
@@ -462,6 +659,9 @@
     fillChecks(cdcChecks, cdc);
     fillChecks(cnhChecks, cnh);
     updateExecSummary();
+    
+    // Carrega departamentos automaticamente ao iniciar
+    setTimeout(() => loadDepartments(), 500);
   })();
 </script>
 </body>

@@ -42,7 +42,7 @@ class Login(Resource):
         print(ok_attr)
         claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail"),"department": attrs.get("department"),"description": attrs.get("description") } if ok_attr and attrs else {}
 
-        identity =  usuario
+        identity =  usuario 
 
         access_token = create_access_token(identity=identity, additional_claims=claims, expires_delta=timedelta(hours=10))
 
