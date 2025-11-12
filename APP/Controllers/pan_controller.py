@@ -1,10 +1,14 @@
-from flask import request, jsonify
+from flask import make_response, request, jsonify
 from flask_restx import Namespace, Resource, reqparse
 from werkzeug.datastructures import FileStorage
 from APP.Services.pan_service import PanService
 from APP.common.protected_resource import ProtectedResource
+from APP.Config.ihs_config import is_running
 import logging
 import traceback
+from threading import Thread
+import os
+import tempfile
 
 # Configurar logger
 logger = logging.getLogger(__name__)
@@ -28,6 +32,47 @@ pan_parser.add_argument(
 
 pan_ns = Namespace('pan', description='Automação PAN - Processamento de extratos bancários')
 
+def executar_processamento_pan(session_id, parameters):
+    """
+    Função para executar o processamento PAN em background
+    """
+    try:
+        service = PanService()
+        
+        # Extrair parâmetros
+        arquivo_excel = parameters['arquivo_excel']
+        data_param = parameters.get('data')
+        
+        # Processar com ou sem data
+        if data_param:
+            resultados = service.processar_extrato_com_data(arquivo_excel, data_param)
+        else:
+            resultados = service.processar_extrato(arquivo_excel)
+        
+        # Converter resultados para dicionário
+        resultados_dict = [resultado.to_dict() for resultado in resultados]
+        
+        return {
+            "status": "completed",
+            "mensagem": f"Processamento concluído - {len(resultados)} registros encontrados",
+            "total_processado": len(resultados),
+            "resultados": resultados_dict
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro no processamento PAN em background: {str(e)}")
+        return {
+            "status": "error",
+            "erro": str(e)
+        }
+    finally:
+        # Limpar arquivo temporário
+        if 'arquivo_excel' in parameters and os.path.exists(parameters['arquivo_excel']):
+            try:
+                os.unlink(parameters['arquivo_excel'])
+            except Exception as e:
+                logger.error(f"Erro ao limpar arquivo temporário: {e}")
+
 @pan_ns.route("/processar")
 class PANProcessar(ProtectedResource):
     @pan_ns.expect(pan_parser)
@@ -35,6 +80,10 @@ class PANProcessar(ProtectedResource):
         """
         Processa arquivo Excel para automação PAN
         """
+        session_id = "FIDC - envio de boletos"
+        if is_running(session_id):
+            return make_response(jsonify({"ok":False,"erro":"already_running"}), 400)
+        
         try:
             # Parse dos argumentos
             args = pan_parser.parse_args()
@@ -62,13 +111,11 @@ class PANProcessar(ProtectedResource):
                 logger.info(f"📅 Data especificada: {data_param}")
             
             # Salvar arquivo temporariamente
-            import tempfile
-            import os
             with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
                 arquivo_excel.save(tmp_file.name)
                 temp_file_path = tmp_file.name
             
-            # Preparar parâmetros para a service
+            # Preparar parâmetros para a thread
             parameters = {
                 'arquivo_excel': temp_file_path
             }
@@ -77,38 +124,29 @@ class PANProcessar(ProtectedResource):
             if data_param:
                 parameters['data'] = data_param
             
-            # Executar automação
-            pan_service = PanService()
+            # Iniciar thread em background
+            t = Thread(
+                target=executar_processamento_pan, 
+                args=(session_id, parameters),
+                daemon=True
+            )
+            t.start()
             
-            logger.info("🚀 Executando automação PAN...")
-            resultado = pan_service.processar_extrato(parameters)
+            logger.info("🚀 Processamento PAN iniciado em background")
             
-            # Limpar arquivo temporário
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-            
-            # Verificar se houve erro na execução
-            if resultado.get('status') == 'error':
-                return {
-                    "ok": False,
-                    "erro": f"Falha na automação PAN: {resultado.get('erro', 'Erro desconhecido')}"
-                }, 500
-            
-            # Formatar resposta de sucesso
+            # Retornar resposta imediata
             response_data = {
                 "ok": True,
-                "mensagem": resultado.get('mensagem', 'Automação PAN executada com sucesso'),
-                "resultado": resultado,
+                "mensagem": "Processamento PAN iniciado em background",
+                "session_id": session_id,
                 "detalhes": {
                     "arquivo_processado": filename,
-                    "total_processado": resultado.get('total_processado', 0),
-                    "resultados_encontrados": len(resultado.get('resultados', [])),
-                    "status": resultado.get('status', 'completed')
+                    "data_processamento": data_param if data_param else "automática",
+                    "status": "iniciado"
                 }
             }
             
-            logger.info(f"✅ Automação PAN concluída: {resultado.get('total_processado', 0)} registros processados")
-            return jsonify(response_data), 200
+            return jsonify(response_data), 202  # 202 Accepted para processos assíncronos
             
         except Exception as e:
             logger.error(f"❌ Erro no processamento PAN: {str(e)}")

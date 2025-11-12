@@ -16,9 +16,7 @@ from werkzeug.datastructures import FileStorage
 from APP.Models.execution_status_log_model import ExecutionStatusLog
 from APP.Models.automation_model import Automation
 from sqlalchemy import desc
-from APP.Models.executions_model import Execution  # Importação adicionada
-
-
+from APP.Models.executions_model import Execution 
 
 
 auto_ns = Namespace("toFront", description="Catálogo de setores, automações e execuções", ordered=True)
@@ -266,4 +264,81 @@ class AutomationStatus(ProtectedResource):
             return {"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR
     
 
-
+@auto_ns.route("/historico")
+class HistoricoList(ProtectedResource):
+    def get(self):
+        """Busca histórico simples de execuções DO USUÁRIO LOGADO"""
+        try:
+            # Pega o username do LDAP do token JWT
+            from flask_jwt_extended import get_jwt_identity
+            
+            username_ldap = get_jwt_identity()  # Este é o username do LDAP
+            if not username_ldap:
+                return {"error": "Usuário não autenticado"}, HTTPStatus.UNAUTHORIZED
+            
+            print(f"📊 Buscando histórico para usuário LDAP: {username_ldap}")
+            
+            pagina = request.args.get('pagina', 1, type=int)
+            limite = request.args.get('limite', 20, type=int)
+            status = request.args.get('status', None)
+            automation_id = request.args.get('automation_id', None)
+            
+            # Query base - FILTRANDO PELO USERNAME DO LDAP
+            query = db.session.query(
+                Execution, 
+                Automation.name.label('automation_name'),
+                ExecutionStatusLog.changed_by.label('user_id')
+            )
+            query = query.join(Automation, Execution.automation_id == Automation.id)
+            query = query.join(ExecutionStatusLog, Execution.id == ExecutionStatusLog.execution_id)
+            
+            # FILTRO PRINCIPAL: apenas execuções do usuário LDAP logado
+            query = query.filter(ExecutionStatusLog.changed_by == username_ldap)
+            
+            # Filtros adicionais
+            if status:
+                query = query.filter(Execution.status == status)
+            if automation_id:
+                query = query.filter(Execution.automation_id == automation_id)
+            
+            # Paginação - PEGA APENAS O ÚLTIMO STATUS LOG POR EXECUÇÃO
+            subquery = db.session.query(
+                ExecutionStatusLog.execution_id,
+                db.func.max(ExecutionStatusLog.changed_at).label('max_changed_at')
+            ).group_by(ExecutionStatusLog.execution_id).subquery()
+            
+            historico = query.join(
+                subquery, 
+                db.and_(
+                    ExecutionStatusLog.execution_id == subquery.c.execution_id,
+                    ExecutionStatusLog.changed_at == subquery.c.max_changed_at
+                )
+            ).order_by(desc(Execution.created_at))\
+             .offset((pagina - 1) * limite)\
+             .limit(limite)\
+             .all()
+            
+            dados = []
+            for execucao, automation_name, user_id in historico:
+                dados.append({
+                    "id": execucao.id,
+                    "automation_name": automation_name,
+                    "status": execucao.status,
+                    "started_by": user_id,  # Este será o username LDAP
+                    "start_time": execucao.start_time.isoformat() if execucao.start_time else None,
+                    "end_time": execucao.end_time.isoformat() if execucao.end_time else None,
+                    "exit_code": execucao.exit_code,
+                    "created_at": execucao.created_at.isoformat() if execucao.created_at else None
+                })
+            
+            return {
+                "pagina": pagina,
+                "limite": limite,
+                "total_encontrado": len(dados),
+                "usuario_logado": username_ldap,  # Para debug
+                "dados": dados
+            }, HTTPStatus.OK
+            
+        except Exception as e:
+            print(f"❌ Erro ao buscar histórico: {e}")
+            return {"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR
