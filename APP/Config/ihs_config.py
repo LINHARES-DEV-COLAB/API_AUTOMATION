@@ -72,8 +72,10 @@ wdw = None
 PASTA_DOWNLOADS = None
 _driver = None
 _lock = threading.Lock()
+drivers = {}
+states = {}
 
-def _ensure_driver(pasta_downlod=r"\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados"):
+def _ensure_driver(session_id: str, pasta_downlod=r"\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Arquivos Baixados"):
     """Garante que o driver global exista e esteja válido."""
     global wdw
     global PASTA_DOWNLOADS
@@ -81,15 +83,47 @@ def _ensure_driver(pasta_downlod=r"\\172.17.67.14\findev$\Automação - CNH\Baix
     global _lock
     
     with _lock:
-        if _driver is None:
+        if session_id not in drivers:
             _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome(pasta_downlod)
+            drivers[session_id] = _driver
+            states[session_id] = {
+                "running": False,
+                "stop": False,
+            }
         else:
             # Verifica se ainda está vivo
             try:
-                _driver.title  # chamada simples para validar sessão
+                drivers[session_id].title  # chamada simples para validar sessão
             except WebDriverException:
                 _driver, wdw, PASTA_DOWNLOADS = config_webdriver_chrome(pasta_downlod)
-    return (_driver, wdw, PASTA_DOWNLOADS)
+                drivers[session_id] = _driver
+                states[session_id] = {
+                    "running": False,
+                    "stop": False,
+                }
+    return (drivers[session_id], wdw, PASTA_DOWNLOADS)
+
+def start_state(session_id: str):
+    with _lock:
+        states[session_id]["running"] = True
+        states[session_id]["stop"] = False
+
+def finish_state(session_id: str):
+    with _lock:
+        states[session_id]["running"] = False
+
+def request_stop(session_id: str):
+    with _lock:
+        if session_id in states:
+            states[session_id]["stop"] = True
+
+def should_stop(session_id: str) -> bool:
+    with _lock:
+        return states.get(session_id, {}).get("stop", False)
+
+def is_running(session_id: str) -> bool:
+    with _lock:
+        return states.get(session_id, {}).get("running", False)
 
 def connection():
     """

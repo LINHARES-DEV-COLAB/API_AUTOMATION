@@ -16,7 +16,7 @@ import os
 from selenium.webdriver.common.by import By
 from time import sleep, time
 import random
-from APP.Config.ihs_config import _ensure_driver
+from APP.Config.ihs_config import _ensure_driver, start_state, should_stop, finish_state
 from APP.Core.baixa_arquivos_core import Path
 from selenium.webdriver.support import expected_conditions as EC
 import logging
@@ -399,7 +399,7 @@ def get_all_users(lojas):
     return usuarios
 
 def _norm_loja(nome: str) -> str:
-    return str(nome).strip().upper().replace(" ", "-")
+    return str(nome).strip().upper().replace("%20", "-")
 
 def _normaliza_lista_lojas_param(param: str) -> List[str]:
     """
@@ -431,6 +431,7 @@ def tela(lojas: str) -> Dict[str, List[str]]:
     df["_LOJA_KEY"] = df["LOJAS"].map(_norm_loja)
 
     # 3) Determina quais keys usar e a ordem
+    lojas = lojas.replace('"', '').replace('[', '').replace(']', '')
     if lojas.lower() == "all":
         # usa TODAS as lojas na ordem do arquivo (removendo duplicatas por primeira ocorrência)
         # se houver duplicatas, consideramos a primeira ocorrência
@@ -527,7 +528,7 @@ def garantir_arquivo(pasta: str | P, nome_arquivo: str, timeout: float = 20.0, i
     raise TimeoutError(f"Arquivo não encontrado após renomear: {alvo}")
 
 
-def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: int = 1):
+def baixa_arquivos_cnh_honda_main(session_id: str, lojas: str, *, retries: int = 0, max_retries: int = 1):
     hoje = datetime.now()
 
     path_file_log = r'\\172.17.67.14\findev$\Automação - CNH\Baixa de Arquivos\Logs\\'
@@ -546,287 +547,293 @@ def baixa_arquivos_cnh_honda_main(lojas: str, *, retries: int = 0, max_retries: 
     path = Path()
 
     try:
-        driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
-    except Exception as e:
-        return False, f'Erro ao criar o webdriver.\nDescrição: {str(e)}'
-
-    # --- monta lista das lojas realmente processadas (em maiúsculas) ---
-    try:
-        usuarios = get_all_users(lojas)
-        lojas_processadas = [u.nome_loja.upper() for u in usuarios]
-    except Exception as e:
-        return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
-
-
-    for user in usuarios:
-        pular_loja = False
-        abas = espera_personalizada(
-                lambda: driver.window_handles,
-                retorno=True
-            )
-        if len(abas) > 1:
-                seleciona_uma_aba_do_navegador(driver, -1)
-                driver.close()
-                seleciona_uma_aba_do_navegador(driver, 0)
         try:
-            driver.get(path.Url.url)
+            driver, wdw, PASTA_DOWNLOADS = _ensure_driver(session_id=session_id)
+            start_state(session_id)
         except Exception as e:
-            return False, f'Erro ao abrir o site.\nDescrição: {str(e)}'
+            return False, f'Erro ao criar o webdriver.\nDescrição: {str(e)}'
+
+        # --- monta lista das lojas realmente processadas (em maiúsculas) ---
         try:
-            # ===============================
-            #             LOGIN
-            # ===============================
-            try:
-                espera_personalizada(inicio_random=1,fim_random=3)
-                driver.find_element(By.CSS_SELECTOR, path.Login.campo_code).send_keys(user.codigo)
-                espera_personalizada(inicio_random=1,fim_random=3)
-                driver.find_element(By.CSS_SELECTOR, path.Login.campo_user).send_keys(user.usuario)
-                espera_personalizada(inicio_random=1,fim_random=3)
-                driver.find_element(By.CSS_SELECTOR, path.Login.campo_password).send_keys(user.senha)
-                espera_personalizada(inicio_random=1,fim_random=3)
+            usuarios = get_all_users(lojas)
+            lojas_processadas = [u.nome_loja.upper() for u in usuarios]
+        except Exception as e:
+            return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
 
-                submit = wdw.until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_entrar))
+
+        for user in usuarios:
+            if should_stop(session_id):
+                print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                break
+            pular_loja = False
+            abas = espera_personalizada(
+                    lambda: driver.window_handles,
+                    retorno=True
                 )
-                submit.click()
-            except Exception as e:
-                logging.error(f'Erro ao fazer o login.\nDescrição: {str(e)}\n{'-'*60}')
-                driver.get(path.Url.url)
-                continue
-
-            try: 
-                prosseguir = wdw.until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_prosseguir))
-                )
-
-                sleep(2)
-
-                prosseguir.click()
-            except Exception as e:
-                logging.error(f'Erro ao quebrar o captcha.\nDescrição: {str(e)}\n{'-'*60}')
-                driver.get(path.Url.url)
-                continue
-
-            # ===============================
-            #       NAVEGAÇÃO NO MENU
-            # ===============================
-            espera_personalizada()
-
-            try:
-                btn_mensagem = WebDriverWait(driver, timeout=15).until(
-                    EC.visibility_of_element_located((By.CSS_SELECTOR, path.MenuPrincipal.btn_mensagem))
-                )
-
-                btn_mensagem.click()
-            except:
-                pass
-
-            try:
-                clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio, 'consórcio')  # Consórcio
-                espera_personalizada(inicio_random=1, fim_random=3)
-                clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'formulários e download')
-
-                espera_personalizada(inicio_random=1, fim_random=3)
-                clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - formulários/download')
-
-                espera_personalizada(inicio_random=1, fim_random=3)
-                clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'baixar informações')
-
-                # ===============================
-                #        ACESSO AO IFRAME
-                # ===============================
-                espera_personalizada(
-                    lambda: driver.switch_to.default_content(),
-                    lambda: driver.switch_to.frame(0),
-                    inicio_random=2,
-                    fim_random=4
-                )
-            except Exception as e:
-                logging.error(f'Erro ao acessar o iframe.\nDescrição: {str(e)}\n{'-'*60}')
-                driver.get(path.Url.url)
-                continue
-
-            for i in range(1,11):
-                try:
-                    id_link, texto_span = pega_texto_elemento(driver, path.Frame.id_link_ccc, i)
-                except Exception as e:
-                    logging.error(f'Erro pegar o texto do link do CCC.\nDescrição: {str(e)}\n{'-'*60}')
-                    pular_loja = True
-                    break
-                
-                if texto_span.strip().upper() == 'CONTA CORRENTE CONCESSIONARIA CRG':
-                    driver.find_element(By.CSS_SELECTOR, f'{id_link} a').click()
-                    
+            if len(abas) > 1:
                     seleciona_uma_aba_do_navegador(driver, -1)
-                    driver.maximize_window()
-
-                    clicar_pelo_atributo(driver, 'value', 'ok', path.Frame.btn_baixar)
-
-                    try:
-                        texto = WebDriverWait(driver, timeout=15).until(
-                            EC.visibility_of_element_located((By.TAG_NAME, path.Frame.texto_interno))
-                        )
-
-                        with open((PASTA_DOWNLOADS / f"{user.nome_loja}.txt"), 'w', encoding='utf-8') as f:
-                            f.writelines(texto.text)
-                            
-                        driver.close()
-                        seleciona_uma_aba_do_navegador(driver, 0)
-                    except:
-                        sleep(random.randint(2, 4))
-                        driver.close()
-                        seleciona_uma_aba_do_navegador(driver, 0)
-
-                        sleep(random.randint(2, 4))
-                        txt_existe = (PASTA_DOWNLOADS / f"{user.nome_loja}.txt").exists()
-                        if not txt_existe:
-                            try:
-                                sleep(random.randint(2, 4))
-                                troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
-                                garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ✅ verificar
-                            except Exception as e:
-                                logging.error(f'Erro ao trocar o nome do arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
-                                pular_loja = True
-                                break
-
-                            try:
-                                sleep(random.randint(2, 4))
-                                caminho_zip = os.path.join(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
-                                prefixo_zip = r"hda0334_new\d$\wwwhondaihs\internet\dwnhsfzip"
-                                extrair_arquivo_alvo(caminho_zip, PASTA_DOWNLOADS, nome_arquivo=None, prefixo=prefixo_zip)
-                            except Exception as e:
-                                logging.error(f'Erro ao extrair o arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
-                                pular_loja = True
-                                break
-
-                    try:
-                        sleep(random.randint(2, 4))
-                        troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")
-                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")  # ✅ verificar
-                    except Exception as e:
-                        logging.error(f'Erro ao trocar o nome do arquivo txt.\nDescrição: {str(e)}\n{'-'*60}')
-                        pular_loja = True
-                        break
-
-                    break
-                
-            if pular_loja:
+                    driver.close()
+                    seleciona_uma_aba_do_navegador(driver, 0)
+            try:
                 driver.get(path.Url.url)
-                continue
-
-            if user.nome_loja in ['JUAZEIRO', 'CRATO', 'NOVA-ONDA-ARACATI']:
+            except Exception as e:
+                return False, f'Erro ao abrir o site.\nDescrição: {str(e)}'
+            try:
+                # ===============================
+                #             LOGIN
+                # ===============================
                 try:
-                    driver.switch_to.default_content()
-                    clica_na_aba(wdw, path.MenuPrincipal.inicio, 'inicio')
-                    
-                    espera_personalizada(inicio_random=1, fim_random=3)
+                    espera_personalizada(inicio_random=1,fim_random=3)
+                    driver.find_element(By.CSS_SELECTOR, path.Login.campo_code).send_keys(user.codigo)
+                    espera_personalizada(inicio_random=1,fim_random=3)
+                    driver.find_element(By.CSS_SELECTOR, path.Login.campo_user).send_keys(user.usuario)
+                    espera_personalizada(inicio_random=1,fim_random=3)
+                    driver.find_element(By.CSS_SELECTOR, path.Login.campo_password).send_keys(user.senha)
+                    espera_personalizada(inicio_random=1,fim_random=3)
+
+                    submit = wdw.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_entrar))
+                    )
+                    submit.click()
+                except Exception as e:
+                    logging.error(f'Erro ao fazer o login.\nDescrição: {str(e)}\n{'-'*60}')
+                    driver.get(path.Url.url)
+                    continue
+
+                try: 
+                    prosseguir = wdw.until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_prosseguir))
+                    )
+
+                    sleep(2)
+
+                    prosseguir.click()
+                except Exception as e:
+                    logging.error(f'Erro ao quebrar o captcha.\nDescrição: {str(e)}\n{'-'*60}')
+                    driver.get(path.Url.url)
+                    continue
+
+                # ===============================
+                #       NAVEGAÇÃO NO MENU
+                # ===============================
+                espera_personalizada()
+
+                try:
+                    btn_mensagem = WebDriverWait(driver, timeout=15).until(
+                        EC.visibility_of_element_located((By.CSS_SELECTOR, path.MenuPrincipal.btn_mensagem))
+                    )
+
+                    btn_mensagem.click()
+                except:
+                    pass
+
+                try:
                     clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio, 'consórcio')  # Consórcio
                     espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'financeiro')
+                    clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'formulários e download')
 
                     espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - financeiro')
+                    clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - formulários/download')
 
                     espera_personalizada(inicio_random=1, fim_random=3)
-                    clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'conta corrente concessionária')
+                    clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'baixar informações')
 
                     # ===============================
-                    #        ACESSO AO JANELA
+                    #        ACESSO AO IFRAME
                     # ===============================
-                    seleciona_uma_aba_do_navegador(driver, -1)
-                except Exception as e:
-                    logging.error(f'Erro ao acessar a tela para baixar o pdf.\nDescrição: {str(e)}\n{'-'*60}')
-                    seleciona_uma_aba_do_navegador(driver, -1)
-                    driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0)
-                    driver.get(path.Url.url)
-                    continue
-
-                # --- Define data de ontem ---
-                ontem = datetime.now() - timedelta(days=1)
-                if ontem.weekday() == 6:  # se for domingo, volta 2 dias (sexta-feira)
-                    ontem = ontem - timedelta(days=2)
-                data_ontem = ontem.strftime("%d/%m/%y")
-
-                sleep(random.randint(2, 4))
-
-                try:
-                    # --- Preenche período da consulta ---
-                    preencher_campo(driver, path.Janela.input_inicio, data_ontem)
-                    preencher_campo(driver, path.Janela.input_fim, data_ontem)
-
                     espera_personalizada(
-                        lambda: driver.find_element(By.CSS_SELECTOR, 'select').click(),
-                        inicio_random=1,
-                        fim_random=3
+                        lambda: driver.switch_to.default_content(),
+                        lambda: driver.switch_to.frame(0),
+                        inicio_random=2,
+                        fim_random=4
                     )
-
-                    clica_na_aba(wdw, 'select option', 'outros')
-
-                    clicar_pelo_atributo(driver, 'value', 'confirmar', path.Janela.btn_confirmar)
-                    
-                    linha_tabela = wdw.until(
-                        EC.presence_of_element_located((By.ID, "Grid2ContainerRow_0001"))
-                    )
-                    sleep(1)
                 except Exception as e:
-                    logging.error(f'Erro baixar o arquivo pdf.\nDescrição: {str(e)}\n{'-'*60}')
-                    seleciona_uma_aba_do_navegador(driver, -1)
-                    driver.close()
-                    seleciona_uma_aba_do_navegador(driver, 0)
+                    logging.error(f'Erro ao acessar o iframe.\nDescrição: {str(e)}\n{'-'*60}')
                     driver.get(path.Url.url)
                     continue
 
-                try:
-                    clicar_pelo_atributo(driver, 'value', 'imprimir', path.Janela.btn_imprimir)
+                for i in range(1,11):
+                    try:
+                        id_link, texto_span = pega_texto_elemento(driver, path.Frame.id_link_ccc, i)
+                    except Exception as e:
+                        logging.error(f'Erro pegar o texto do link do CCC.\nDescrição: {str(e)}\n{'-'*60}')
+                        pular_loja = True
+                        break
+                    
+                    if texto_span.strip().upper() == 'CONTA CORRENTE CONCESSIONARIA CRG':
+                        driver.find_element(By.CSS_SELECTOR, f'{id_link} a').click()
+                        
+                        seleciona_uma_aba_do_navegador(driver, -1)
+                        driver.maximize_window()
 
-                    troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")
-                    garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")  # ✅ verificar
-                except Exception as e:
-                    logging.error(f'Erro ao trocar o nome do pdf.\nDescrição: {str(e)}\n{'-'*60}')
+                        clicar_pelo_atributo(driver, 'value', 'ok', path.Frame.btn_baixar)
+
+                        try:
+                            texto = WebDriverWait(driver, timeout=15).until(
+                                EC.visibility_of_element_located((By.TAG_NAME, path.Frame.texto_interno))
+                            )
+
+                            with open((PASTA_DOWNLOADS / f"{user.nome_loja}.txt"), 'w', encoding='utf-8') as f:
+                                f.writelines(texto.text)
+                                
+                            driver.close()
+                            seleciona_uma_aba_do_navegador(driver, 0)
+                        except:
+                            sleep(random.randint(2, 4))
+                            driver.close()
+                            seleciona_uma_aba_do_navegador(driver, 0)
+
+                            sleep(random.randint(2, 4))
+                            txt_existe = (PASTA_DOWNLOADS / f"{user.nome_loja}.txt").exists()
+                            if not txt_existe:
+                                try:
+                                    sleep(random.randint(2, 4))
+                                    troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
+                                    garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")  # ✅ verificar
+                                except Exception as e:
+                                    logging.error(f'Erro ao trocar o nome do arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
+                                    pular_loja = True
+                                    break
+
+                                try:
+                                    sleep(random.randint(2, 4))
+                                    caminho_zip = os.path.join(PASTA_DOWNLOADS, f"{user.nome_loja}.zip")
+                                    prefixo_zip = r"hda0334_new\d$\wwwhondaihs\internet\dwnhsfzip"
+                                    extrair_arquivo_alvo(caminho_zip, PASTA_DOWNLOADS, nome_arquivo=None, prefixo=prefixo_zip)
+                                except Exception as e:
+                                    logging.error(f'Erro ao extrair o arquivo zip.\nDescrição: {str(e)}\n{'-'*60}')
+                                    pular_loja = True
+                                    break
+
+                        try:
+                            sleep(random.randint(2, 4))
+                            troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")
+                            garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.txt")  # ✅ verificar
+                        except Exception as e:
+                            logging.error(f'Erro ao trocar o nome do arquivo txt.\nDescrição: {str(e)}\n{'-'*60}')
+                            pular_loja = True
+                            break
+
+                        break
+                    
+                if pular_loja:
+                    driver.get(path.Url.url)
+                    continue
+
+                if user.nome_loja in ['JUAZEIRO', 'CRATO', 'NOVA-ONDA-ARACATI']:
+                    try:
+                        driver.switch_to.default_content()
+                        clica_na_aba(wdw, path.MenuPrincipal.inicio, 'inicio')
+                        
+                        espera_personalizada(inicio_random=1, fim_random=3)
+                        clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio, 'consórcio')  # Consórcio
+                        espera_personalizada(inicio_random=1, fim_random=3)
+                        clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'financeiro')
+
+                        espera_personalizada(inicio_random=1, fim_random=3)
+                        clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - financeiro')
+
+                        espera_personalizada(inicio_random=1, fim_random=3)
+                        clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'conta corrente concessionária')
+
+                        # ===============================
+                        #        ACESSO AO JANELA
+                        # ===============================
+                        seleciona_uma_aba_do_navegador(driver, -1)
+                    except Exception as e:
+                        logging.error(f'Erro ao acessar a tela para baixar o pdf.\nDescrição: {str(e)}\n{'-'*60}')
+                        seleciona_uma_aba_do_navegador(driver, -1)
+                        driver.close()
+                        seleciona_uma_aba_do_navegador(driver, 0)
+                        driver.get(path.Url.url)
+                        continue
+
+                    # --- Define data de ontem ---
+                    ontem = datetime.now() - timedelta(days=1)
+                    if ontem.weekday() == 6:  # se for domingo, volta 2 dias (sexta-feira)
+                        ontem = ontem - timedelta(days=2)
+                    data_ontem = ontem.strftime("%d/%m/%y")
+
+                    sleep(random.randint(2, 4))
+
+                    try:
+                        # --- Preenche período da consulta ---
+                        preencher_campo(driver, path.Janela.input_inicio, data_ontem)
+                        preencher_campo(driver, path.Janela.input_fim, data_ontem)
+
+                        espera_personalizada(
+                            lambda: driver.find_element(By.CSS_SELECTOR, 'select').click(),
+                            inicio_random=1,
+                            fim_random=3
+                        )
+
+                        clica_na_aba(wdw, 'select option', 'outros')
+
+                        clicar_pelo_atributo(driver, 'value', 'confirmar', path.Janela.btn_confirmar)
+                        
+                        linha_tabela = wdw.until(
+                            EC.presence_of_element_located((By.ID, "Grid2ContainerRow_0001"))
+                        )
+                        sleep(1)
+                    except Exception as e:
+                        logging.error(f'Erro baixar o arquivo pdf.\nDescrição: {str(e)}\n{'-'*60}')
+                        seleciona_uma_aba_do_navegador(driver, -1)
+                        driver.close()
+                        seleciona_uma_aba_do_navegador(driver, 0)
+                        driver.get(path.Url.url)
+                        continue
+
+                    try:
+                        clicar_pelo_atributo(driver, 'value', 'imprimir', path.Janela.btn_imprimir)
+
+                        troca_nome_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")
+                        garantir_arquivo(PASTA_DOWNLOADS, f"{user.nome_loja}.pdf")  # ✅ verificar
+                    except Exception as e:
+                        logging.error(f'Erro ao trocar o nome do pdf.\nDescrição: {str(e)}\n{'-'*60}')
+                        for _ in range(2):
+                            seleciona_uma_aba_do_navegador(driver, -1)
+                            driver.close()
+                        seleciona_uma_aba_do_navegador(driver, 0)
+                        driver.get(path.Url.url)
+                        continue
+
                     for _ in range(2):
                         seleciona_uma_aba_do_navegador(driver, -1)
                         driver.close()
+                    
                     seleciona_uma_aba_do_navegador(driver, 0)
-                    driver.get(path.Url.url)
-                    continue
+                    driver.switch_to.frame(0)
 
-                for _ in range(2):
-                    seleciona_uma_aba_do_navegador(driver, -1)
+                    try:
+                        extract_text_pdfplumber(nome_loja=user.nome_loja)
+                        garantir_arquivo(PASTA_DOWNLOADS, f"extracao_pdf_{user.nome_loja}.xlsx")  # ✅ verificar
+                    except Exception as e:
+                        logging.error(f'Erro ao extrair os dados do pdf para o excel.\nDescrição: {str(e)}\n{'-'*60}')
+                        driver.get(path.Url.url)
+                        continue
+
+                sleep(random.randint(2, 4))
+                # ===============================
+                #          SAIR DA LOJA
+                # ===============================
+                sair_ihs(driver, path.Logout.btn_sair)
+
+            except Exception as e:
+                logging.error(f'Erro ao solicitar a carga da loja {user.nome_loja}.\nDescrição: {str(e)}')
+                
+                abas = espera_personalizada(
+                    lambda: driver.window_handles,
+                    retorno=True
+                )
+                
+                if len(abas) > 1:
                     driver.close()
-                
-                seleciona_uma_aba_do_navegador(driver, 0)
-                driver.switch_to.frame(0)
-
-                try:
-                    extract_text_pdfplumber(nome_loja=user.nome_loja)
-                    garantir_arquivo(PASTA_DOWNLOADS, f"extracao_pdf_{user.nome_loja}.xlsx")  # ✅ verificar
-                except Exception as e:
-                    logging.error(f'Erro ao extrair os dados do pdf para o excel.\nDescrição: {str(e)}\n{'-'*60}')
-                    driver.get(path.Url.url)
-                    continue
-
-            sleep(random.randint(2, 4))
-            # ===============================
-            #          SAIR DA LOJA
-            # ===============================
-            sair_ihs(driver, path.Logout.btn_sair)
-
-        except Exception as e:
-            logging.error(f'Erro ao solicitar a carga da loja {user.nome_loja}.\nDescrição: {str(e)}')
-            
-            abas = espera_personalizada(
-                lambda: driver.window_handles,
-                retorno=True
-            )
-            
-            if len(abas) > 1:
-                driver.close()
-                seleciona_uma_aba_do_navegador(driver, 0)
-                
-            driver.get(path.Url.url)
-            continue
-
+                    seleciona_uma_aba_do_navegador(driver, 0)
+                    
+                driver.get(path.Url.url)
+                continue
+    finally:
+        finish_state(session_id)
     # ===============================
     #   VERIFICAÇÃO PÓS-PROCESSO
     # ===============================

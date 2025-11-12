@@ -1,5 +1,5 @@
 from selenium.webdriver.support import expected_conditions as EC
-from APP.Config.ihs_config import PASTA_DOWNLOADS, _ensure_driver, busca_dados_db
+from APP.Config.ihs_config import PASTA_DOWNLOADS, _ensure_driver, busca_dados_db, start_state, should_stop, finish_state
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from typing import Dict, List, Tuple, Optional
@@ -596,6 +596,7 @@ def _parse_param_lojas(lojas_param: str) -> List[str]:
     Converte o parâmetro 'lojas' em lista de nomes CANÔNICOS (como em LOJAS),
     preservando a ordem de entrada e removendo duplicatas pela 1ª ocorrência.
     """
+    lojas_param = lojas_param.replace('"', '').replace('[', '').replace(']', '')
     if not lojas_param:
         return []
 
@@ -606,7 +607,7 @@ def _parse_param_lojas(lojas_param: str) -> List[str]:
     vistos = set()
     ordem_canonica: List[str] = []
 
-    for token in lojas_param.split(" ,"):
+    for token in lojas_param.split(","):
         key = _norm_key(token)
         if not key:
             continue
@@ -690,7 +691,7 @@ def tela(lojas: str) -> Dict[str, List[str]]:
     }
 
 
-def conciliacao_cdc_honda_main(lojas: str):
+def conciliacao_cdc_honda_main(session_id: str, lojas: str):
         # Busca todos os usuários cadastrados
     try:
         usuarios = get_all_users(lojas)
@@ -699,192 +700,151 @@ def conciliacao_cdc_honda_main(lojas: str):
     # Marca o início da execução (para métricas)
     start_time = time()
 
-    # Configura o WebDriver
-    driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
+    try:
+        # Configura o WebDriver
+        driver, wdw, PASTA_DOWNLOADS = _ensure_driver(session_id=session_id)
+        start_state(session_id)
 
-    url = 'https://www3.honda.com.br/corp/ihs/portal/#/login'
+        url = 'https://www3.honda.com.br/corp/ihs/portal/#/login'
 
-    for user in usuarios:
-        driver.get(url)  # Entra no site do IHS
-        try:
-
-
-            driver.delete_all_cookies()
-
-            # --- Login ---
-            espera_personalizada(inicio_random=1, fim_random=3)
-            driver.find_element(By.CSS_SELECTOR, '#codEmpresa').send_keys(user.codigo)
-            espera_personalizada(inicio_random=1, fim_random=3)
-            driver.find_element(By.CSS_SELECTOR, '#codUsuario').send_keys(user.usuario)
-            espera_personalizada(inicio_random=1, fim_random=3)
-            driver.find_element(By.CSS_SELECTOR, '#senha').send_keys(user.senha)
-            espera_personalizada(inicio_random=1, fim_random=3)
-
-            submit = wdw.until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, '#submitLogin'))
-            )
-            submit.click()
-            
-            prosseguir = wdw.until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.div-token center button.btn-default.btn.button-token'))
-            )
-
-            sleep(2)
-
-            prosseguir.click()
-
-            # --- Navegação pelo menu ---
-            espera_personalizada()
-
+        for user in usuarios:
+            driver.get(url)  # Entra no site do IHS
+            if should_stop(session_id):
+                print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                break
             try:
-                btn_mensagem = WebDriverWait(driver, timeout=15).until(
-                    EC.visibility_of_element_located((By.CSS_SELECTOR, 'div#container-portal button[type="submit"]'))
+
+
+                driver.delete_all_cookies()
+
+                # --- Login ---
+                espera_personalizada(inicio_random=1, fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, '#codEmpresa').send_keys(user.codigo)
+                espera_personalizada(inicio_random=1, fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, '#codUsuario').send_keys(user.usuario)
+                espera_personalizada(inicio_random=1, fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, '#senha').send_keys(user.senha)
+                espera_personalizada(inicio_random=1, fim_random=3)
+
+                submit = wdw.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, '#submitLogin'))
+                )
+                submit.click()
+                
+                prosseguir = wdw.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.div-token center button.btn-default.btn.button-token'))
                 )
 
-                btn_mensagem.click()
-            except:
-                pass
-            
-            clica_na_aba(wdw, '.a-empresaHonda', 'banco')  # Financiamento
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, '.menugeral ul li a', 'gestão de financiamentos')
+                sleep(2)
 
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, '#sideMenu0 .itemMenu a', 'gestão de financiamentos')
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, '#sideMenu0 .itemMenu a', 'controlar pagamento')
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, '#sideMenu0 .itemMenu a', 'consultar cc concessionaria')
+                prosseguir.click()
 
-            # --- Acessa o frame principal ---
-            espera_personalizada(
-                lambda: driver.switch_to.default_content(),
-                lambda: driver.switch_to.frame(0),
-                lambda: driver.find_element(By.CSS_SELECTOR, 'select').click(),
-                inicio_random=2,
-                fim_random=4
-            )
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, 'select option', 'financiamento de bens')
+                # --- Navegação pelo menu ---
+                espera_personalizada()
 
-            # --- Define data de ontem ---
-            ontem = datetime.now() - timedelta(days=1)
-            if ontem.weekday() == 6:  # se for domingo, volta 2 dias (sexta-feira)
-                ontem = ontem - timedelta(days=2)
-            data_ontem = ontem.strftime("%d/%m/%y")
+                try:
+                    btn_mensagem = WebDriverWait(driver, timeout=15).until(
+                        EC.visibility_of_element_located((By.CSS_SELECTOR, 'div#container-portal button[type="submit"]'))
+                    )
 
-            sleep(random.randint(2, 4))
-
-            # --- Preenche período da consulta ---
-            preencher_campo(driver, (By.CSS_SELECTOR, '#vWDPERINI'), data_ontem)
-            preencher_campo(driver, (By.CSS_SELECTOR, '#vWDPERFIM'), data_ontem)
-
-            # Confirma pesquisa
-            clicar_pelo_atributo(
-                driver=driver,
-                atributo='value',
-                texto_comparar='confirmar',
-                locator=(By.CSS_SELECTOR, 'input')
-            )
-
-            # --- Busca dados na Honda ---
-            dados = {}
-            lista_documentos_nao_pagos = []
-            logs = []
-            documentos = []
-
-            # ===================================
-            #    Pega os valores do extrato
-            # ===================================
-            espera_personalizada(lambda: driver.execute_script("document.body.style.zoom='57%'"), inicio_random=2,fim_random=4)
-
-            try:
-
-                valores_extrato = ler_valores_extrato(user, ontem, parse_valor)
-
-            except Exception as e:
-                logs.append(f'🚫 Erro ao ler o arquivo do extrato. Ele não existe ou não é um arquivo Excel.\nDescrição: {str(e)}')
-
-                sair_ihs(driver)
-                continue
-
-            
-            # ===================================
-            #   Pega os dados se for uma página
-            # ===================================
-            espera_personalizada(inicio_random=2, fim_random=5)
-            lote_teste = pega_texto_elemento(driver, 'span_vCCNNLOT', 15)
-            if lote_teste == None:
-                for i in range(1,15):
-                    if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
-                    
-                    try:
-                        documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
-
-                        if documento == None: break
-
-                        documentos.append(documento.text.strip())
-                    except:
-                        continue
+                    btn_mensagem.click()
+                except:
+                    pass
                 
-                contagem = Counter(documentos)
-                documentos_nao_pagos = [item for item, qtd in contagem.items() if qtd == 1]
+                clica_na_aba(wdw, '.a-empresaHonda', 'banco')  # Financiamento
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, '.menugeral ul li a', 'gestão de financiamentos')
 
-                if documentos_nao_pagos:
-                    logs.append(f'{'=' * 60}\n')
-                    for doc in documentos_nao_pagos:
-                        for i in range(1,15):
-                            if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, '#sideMenu0 .itemMenu a', 'gestão de financiamentos')
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, '#sideMenu0 .itemMenu a', 'controlar pagamento')
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, '#sideMenu0 .itemMenu a', 'consultar cc concessionaria')
 
-                            documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-                            if documento == None: break
+                # --- Acessa o frame principal ---
+                espera_personalizada(
+                    lambda: driver.switch_to.default_content(),
+                    lambda: driver.switch_to.frame(0),
+                    lambda: driver.find_element(By.CSS_SELECTOR, 'select').click(),
+                    inicio_random=2,
+                    fim_random=4
+                )
 
-                            if doc == documento.text.strip():
-                                lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, 'select option', 'financiamento de bens')
 
-                                if lote.text.strip() != '0':
-                                    valor = pega_texto_elemento(driver, 'span_vCCNVEVT', i)
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-                                    valor_parseado = parse_valor(valor.text.strip())
+                # --- Define data de ontem ---
+                ontem = datetime.now() - timedelta(days=1)
+                if ontem.weekday() == 6:  # se for domingo, volta 2 dias (sexta-feira)
+                    ontem = ontem - timedelta(days=2)
+                data_ontem = ontem.strftime("%d/%m/%y")
 
-                                    if valor_parseado not in valores_extrato:
-                                        logs.append(f'❌ Documento não pago: {doc}')
+                sleep(random.randint(2, 4))
 
-                    logs.append(f'{'=' * 60}\n')
+                # --- Preenche período da consulta ---
+                preencher_campo(driver, (By.CSS_SELECTOR, '#vWDPERINI'), data_ontem)
+                preencher_campo(driver, (By.CSS_SELECTOR, '#vWDPERFIM'), data_ontem)
+
+                # Confirma pesquisa
+                clicar_pelo_atributo(
+                    driver=driver,
+                    atributo='value',
+                    texto_comparar='confirmar',
+                    locator=(By.CSS_SELECTOR, 'input')
+                )
+
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+
+                # --- Busca dados na Honda ---
+                dados = {}
+                logs = []
+                documentos = []
+
+                # ===================================
+                #    Pega os valores do extrato
+                # ===================================
+                espera_personalizada(lambda: driver.execute_script("document.body.style.zoom='57%'"), inicio_random=2,fim_random=4)
+
+                try:
+
+                    valores_extrato = ler_valores_extrato(user, ontem, parse_valor)
+
+                except Exception as e:
+                    logs.append(f'🚫 Erro ao ler o arquivo do extrato. Ele não existe ou não é um arquivo Excel.\nDescrição: {str(e)}')
+
+                    sair_ihs(driver)
+                    continue
+
                 
-                for i in range(1,15):
-                    if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
-
-                    lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
-
-                    if lote == None: break
-
-                    if lote.text.strip() != '0':
-                        valor = pega_texto_elemento(driver, 'span_vCCNVEVT', i)
-
-                        valor_parseado = parse_valor(valor.text.strip())
-
-                        if valor_parseado in valores_extrato:
-                            lote.click()
-
-                            nomes, valores = espera_personalizada(
-                                lambda: pega_valores_liquidos(driver, wdw, EC),
-                                retorno=True
-                            )
-
-                            if nomes and valores:
-                                for nome, valor in zip(nomes, valores):
-                                    dados[nome] = parse_valor(valor)
-            else:
-            # ===================================
-            #   Pega os dados se for duas página
-            # ===================================
-                for p in range(2):
-                    for i in range(1,16):
+                # ===================================
+                #   Pega os dados se for uma página
+                # ===================================
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+                espera_personalizada(inicio_random=2, fim_random=5)
+                lote_teste = pega_texto_elemento(driver, 'span_vCCNNLOT', 15)
+                if lote_teste == None:
+                    for i in range(1,15):
+                        if should_stop(session_id):
+                            break
                         if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
-
+                        
                         try:
                             documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
 
@@ -893,26 +853,22 @@ def conciliacao_cdc_honda_main(lojas: str):
                             documentos.append(documento.text.strip())
                         except:
                             continue
-                
-                    if p == 0:
-                        tenta_passar_pagina(driver)
-                        espera_personalizada(inicio_random=4, fim_random=8)
-                    else:
-                        tenta_passar_pagina_atras(driver)
-                        espera_personalizada(inicio_random=4, fim_random=8)
 
-                contagem = Counter(documentos)
-                documentos_nao_pagos = [item for item, qtd in contagem.items() if qtd == 1]
+                    if should_stop(session_id):
+                        print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                        break
+                    
+                    contagem = Counter(documentos)
+                    documentos_nao_pagos = [item for item, qtd in contagem.items() if qtd == 1]
 
-                quantas_pular = 2
-                if lote_teste == '0':
-                    quantas_pular = 1
-
-                for p in range(quantas_pular):
                     if documentos_nao_pagos:
                         logs.append(f'{'=' * 60}\n')
                         for doc in documentos_nao_pagos:
-                            for i in range(1,16):
+                            if should_stop(session_id):
+                                break
+                            for i in range(1,15):
+                                if should_stop(session_id):
+                                    break
                                 if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                                 documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
@@ -931,8 +887,15 @@ def conciliacao_cdc_honda_main(lojas: str):
                                             logs.append(f'❌ Documento não pago: {doc}')
 
                         logs.append(f'{'=' * 60}\n')
+
+                        if should_stop(session_id):
+                            print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                            break
                     
-                    for i in range(1,16):
+                    
+                    for i in range(1,15):
+                        if should_stop(session_id):
+                            break
                         if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
                         lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
@@ -956,7 +919,34 @@ def conciliacao_cdc_honda_main(lojas: str):
                                     for nome, valor in zip(nomes, valores):
                                         dados[nome] = parse_valor(valor)
                     
-                    if quantas_pular == 2:
+                    if should_stop(session_id):
+                        print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                        break
+                else:
+                # ===================================
+                #   Pega os dados se for duas página
+                # ===================================
+                    if should_stop(session_id):
+                        print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                        break
+
+                    for p in range(2):
+                        if should_stop(session_id):
+                            break
+                        for i in range(1,16):
+                            if should_stop(session_id):
+                                break
+                            if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
+
+                            try:
+                                documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
+
+                                if documento == None: break
+
+                                documentos.append(documento.text.strip())
+                            except:
+                                continue
+                    
                         if p == 0:
                             tenta_passar_pagina(driver)
                             espera_personalizada(inicio_random=4, fim_random=8)
@@ -964,97 +954,196 @@ def conciliacao_cdc_honda_main(lojas: str):
                             tenta_passar_pagina_atras(driver)
                             espera_personalizada(inicio_random=4, fim_random=8)
 
-        except Exception as e:
-            logs.append(f'🚫 Erro ao buscar os dados na loja de {user.nome_loja}.\nDescrição: {str(e)}')
-            
-            sair_ihs(driver)
-            continue
+                    if should_stop(session_id):
+                        print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                        break
 
-        try:
-            # --- Busca dados no banco local ---
-            cur = busca_dados_db()
+                    contagem = Counter(documentos)
+                    documentos_nao_pagos = [item for item, qtd in contagem.items() if qtd == 1]
 
-            
-            titulos, duplicatas, valores, nomes, situacoes = [], [], [], [], []
+                    quantas_pular = 2
+                    if lote_teste == '0':
+                        quantas_pular = 1
 
-            for row in cur:
-                try:
-                    eh_compativel, log, valor_normalizado = compara_valores(
-                        nome_db=unidecode(row[-1].strip().upper()),
-                        valor_db=row[3],
-                        empresa=row[-2],
-                        titulo=row[1],
-                        dados_honda=dados
-                    )
+                    for p in range(quantas_pular):
+                        if should_stop(session_id):
+                            break
+                        if documentos_nao_pagos:
+                            logs.append(f'{'=' * 60}\n')
+                            for doc in documentos_nao_pagos:
+                                if should_stop(session_id):
+                                    break
+                                for i in range(1,16):
+                                    if should_stop(session_id):
+                                        break
+                                    if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
-                    if not log or '❌ Nenhum cliente correspondente encontrado.' in log: continue
+                                    documento = pega_texto_elemento(driver, 'span_vCCNNDOC', i)
 
-                    logs.append(log)
+                                    if documento == None: break
 
-                    # Se for compatível, guarda para exportação
-                    if eh_compativel:
-                        valor_ajustado_real = f'{valor_normalizado:,.2f}'.replace('.', '_').replace(',', '.').replace('_', ',')
-                        titulos.append(row[1])
-                        duplicatas.append(row[2])
-                        valores.append(valor_ajustado_real)
-                        nomes.append(row[-1])
-                        if '❌' in log:
-                            situacoes.append('Incompatível por causa do valor')
-                        else:
-                            situacoes.append('Compatível')
-                except TypeError:
-                    continue
-        except Exception as e:
-            logs.append(f'🚫 Erro ao consultar dados no banco de dados.\nDescrição: {str(e)}')
-            
-            sair_ihs(driver)
-            continue
+                                    if doc == documento.text.strip():
+                                        lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
 
-        try:
-            # --- Monta DataFrame com os dados compatíveis ---
-            cabecalhos = ['TITULO', 'DUPLICATA', 'VALOR']
-            cabecalhos_excel = ['NOME', 'TITULO', 'DUPLICATA', 'VALOR', 'SITUACAO']
-            data = {
-                cabecalhos[0]: titulos,
-                cabecalhos[1]: duplicatas,
-                cabecalhos[2]: valores
-            }
-            data_excel = {
-                cabecalhos_excel[0]: nomes,
-                cabecalhos_excel[1]: titulos,
-                cabecalhos_excel[2]: duplicatas,
-                cabecalhos_excel[3]: valores,
-                cabecalhos_excel[4]: situacoes,
-            }
-            df = pandas.DataFrame(data, columns=cabecalhos)
-            df_excel = pandas.DataFrame(data_excel, columns=cabecalhos_excel)
+                                        if lote.text.strip() != '0':
+                                            valor = pega_texto_elemento(driver, 'span_vCCNVEVT', i)
 
-            hoje = datetime.now().strftime("%d-%m-%Y")
+                                            valor_parseado = parse_valor(valor.text.strip())
 
-            # Salva logs e CSV por loja
-            cria_arquivo_log(user.nome_loja, logs)
-            # Caminhos base usando Path (melhor que strings com \\)
-            base_dir = P(r"\\172.17.67.14\findev$\Automação - CDC")
-            csv_dir = base_dir / "Arquivos_csv"
-            excel_dir = base_dir / "Arquivos_excel"
+                                            if valor_parseado not in valores_extrato:
+                                                logs.append(f'❌ Documento não pago: {doc}')
 
-            # Monta os nomes de arquivos de forma segura e legível
-            arquivo_csv = csv_dir / f"consolidado_{user.nome_loja}_{hoje}.csv"
-            arquivo_excel = excel_dir / f"resumo_{user.nome_loja}_{hoje}.xlsx"
+                            logs.append(f'{'=' * 60}\n')
 
-            # Salva os arquivos
-            df.to_csv(arquivo_csv, index=False, sep=';', encoding='utf-8-sig')
-            df_excel.to_excel(arquivo_excel, index=False)
+                            if should_stop(session_id):
+                                print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                                break
+                        
+                        for i in range(1,16):
+                            if should_stop(session_id):
+                                print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                                break
+                            if i == 1: espera_personalizada(inicio_random=4, fim_random=8)
 
-            sair_ihs(driver)
+                            lote = pega_texto_elemento(driver, 'span_vCCNNLOT', i)
 
-            espera_personalizada(inicio_random=2, fim_random=4)
-        except Exception as e:
-            logs.append(f'🚫 Erro ao gerar o arquivo .csv da loja {user.nome_loja}.\nDescrição: {str(e)}')
-            
-            sair_ihs(driver)
-            continue
+                            if lote == None: break
 
+                            if lote.text.strip() != '0':
+                                valor = pega_texto_elemento(driver, 'span_vCCNVEVT', i)
+
+                                valor_parseado = parse_valor(valor.text.strip())
+
+                                if valor_parseado in valores_extrato:
+                                    lote.click()
+
+                                    nomes, valores = espera_personalizada(
+                                        lambda: pega_valores_liquidos(driver, wdw, EC),
+                                        retorno=True
+                                    )
+
+                                    if nomes and valores:
+                                        for nome, valor in zip(nomes, valores):
+                                            dados[nome] = parse_valor(valor)
+                        
+                        if should_stop(session_id):
+                            print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                            break
+
+                        if quantas_pular == 2:
+                            if p == 0:
+                                tenta_passar_pagina(driver)
+                                espera_personalizada(inicio_random=4, fim_random=8)
+                            else:
+                                tenta_passar_pagina_atras(driver)
+                                espera_personalizada(inicio_random=4, fim_random=8)
+
+            except Exception as e:
+                logs.append(f'🚫 Erro ao buscar os dados na loja de {user.nome_loja}.\nDescrição: {str(e)}')
+                
+                sair_ihs(driver)
+                continue
+
+            try:
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+                # --- Busca dados no banco local ---
+                cur = busca_dados_db()
+
+                
+                titulos, duplicatas, valores, nomes, situacoes = [], [], [], [], []
+
+                for row in cur:
+                    if should_stop(session_id):
+                        print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                        break
+                    try:
+                        eh_compativel, log, valor_normalizado = compara_valores(
+                            nome_db=unidecode(row[-1].strip().upper()),
+                            valor_db=row[3],
+                            empresa=row[-2],
+                            titulo=row[1],
+                            dados_honda=dados
+                        )
+
+                        if not log or '❌ Nenhum cliente correspondente encontrado.' in log: continue
+
+                        logs.append(log)
+
+                        # Se for compatível, guarda para exportação
+                        if eh_compativel:
+                            valor_ajustado_real = f'{valor_normalizado:,.2f}'.replace('.', '_').replace(',', '.').replace('_', ',')
+                            titulos.append(row[1])
+                            duplicatas.append(row[2])
+                            valores.append(valor_ajustado_real)
+                            nomes.append(row[-1])
+                            if '❌' in log:
+                                situacoes.append('Incompatível por causa do valor')
+                            else:
+                                situacoes.append('Compatível')
+                    except TypeError:
+                        continue
+            except Exception as e:
+                logs.append(f'🚫 Erro ao consultar dados no banco de dados.\nDescrição: {str(e)}')
+                
+                sair_ihs(driver)
+                continue
+
+            try:
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+                # --- Monta DataFrame com os dados compatíveis ---
+                cabecalhos = ['TITULO', 'DUPLICATA', 'VALOR']
+                cabecalhos_excel = ['NOME', 'TITULO', 'DUPLICATA', 'VALOR', 'SITUACAO']
+                data = {
+                    cabecalhos[0]: titulos,
+                    cabecalhos[1]: duplicatas,
+                    cabecalhos[2]: valores
+                }
+                data_excel = {
+                    cabecalhos_excel[0]: nomes,
+                    cabecalhos_excel[1]: titulos,
+                    cabecalhos_excel[2]: duplicatas,
+                    cabecalhos_excel[3]: valores,
+                    cabecalhos_excel[4]: situacoes,
+                }
+                df = pandas.DataFrame(data, columns=cabecalhos)
+                df_excel = pandas.DataFrame(data_excel, columns=cabecalhos_excel)
+
+                hoje = datetime.now().strftime("%d-%m-%Y")
+
+                # Salva logs e CSV por loja
+                cria_arquivo_log(user.nome_loja, logs)
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+                # Caminhos base usando Path (melhor que strings com \\)
+                base_dir = P(r"\\172.17.67.14\findev$\Automação - CDC")
+                csv_dir = base_dir / "Arquivos_csv"
+                excel_dir = base_dir / "Arquivos_excel"
+
+                # Monta os nomes de arquivos de forma segura e legível
+                arquivo_csv = csv_dir / f"consolidado_{user.nome_loja}_{hoje}.csv"
+                arquivo_excel = excel_dir / f"resumo_{user.nome_loja}_{hoje}.xlsx"
+
+                # Salva os arquivos
+                df.to_csv(arquivo_csv, index=False, sep=';', encoding='utf-8-sig')
+                df_excel.to_excel(arquivo_excel, index=False)
+
+                sair_ihs(driver)
+
+                espera_personalizada(inicio_random=2, fim_random=4)
+            except Exception as e:
+                logs.append(f'🚫 Erro ao gerar o arquivo .csv da loja {user.nome_loja}.\nDescrição: {str(e)}')
+                
+                sair_ihs(driver)
+                continue
+
+    finally:
+        finish_state(session_id)
+        
     # --- Finalização ---
     end_time = time()
     tempo_total_min = str(timedelta(seconds=end_time - start_time))

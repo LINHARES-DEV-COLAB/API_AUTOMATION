@@ -3,7 +3,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from APP.DTO.ihs_dto import User
-from APP.Config.ihs_config import _ensure_driver
+from APP.Config.ihs_config import _ensure_driver, start_state, should_stop, finish_state
 from APP.Core.solicitacao_carga_core import Path
 from openpyxl import load_workbook, Workbook
 from typing import Dict, List
@@ -251,7 +251,7 @@ def get_all_users(lojas):
     return usuarios
 
 def _norm_loja(nome: str) -> str:
-    return str(nome).strip().upper().replace(" ", "-")
+    return str(nome).strip().upper().replace("%20", "-")
 
 def _normaliza_lista_lojas_param(param: str) -> List[str]:
     """
@@ -283,6 +283,7 @@ def tela(lojas: str) -> Dict[str, List[str]]:
     df["_LOJA_KEY"] = df["LOJAS"].map(_norm_loja)
 
     # 3) Determina quais keys usar e a ordem
+    lojas = lojas.replace('"', '').replace('[', '').replace(']', '')
     if lojas.lower() == "all":
         # usa TODAS as lojas na ordem do arquivo (removendo duplicatas por primeira ocorrência)
         # se houver duplicatas, consideramos a primeira ocorrência
@@ -324,7 +325,7 @@ def tela(lojas: str) -> Dict[str, List[str]]:
 
     return {"LOJAS": lojas_out, "CODIGOS": codigos, "USUARIOS": usuarios, "SENHAS": senhas}
 
-def solicitacao_carga_main(lojas):
+def solicitacao_carga_main(session_id: str, lojas):
         # Data atual formatada
     hoje = datetime.today().strftime("%Y-%m-%d")
 
@@ -347,135 +348,165 @@ def solicitacao_carga_main(lojas):
 
     path = Path()
 
-    driver, wdw, PASTA_DOWNLOADS = _ensure_driver()
-
-    # Busca todos os usuários cadastrados
     try:
-        usuarios = get_all_users(lojas)
-    except Exception as e:
-        return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
+        driver, wdw, PASTA_DOWNLOADS = _ensure_driver(session_id=session_id)
+        start_state(session_id)
 
-    for user in usuarios:
-        driver.get(path.Url.url)
+        # Busca todos os usuários cadastrados
         try:
-            # ===============================
-            #             LOGIN
-            # ===============================
-            espera_personalizada(inicio_random=1,fim_random=3)
-            driver.find_element(By.CSS_SELECTOR, path.Login.campo_code).send_keys(user.codigo)
-            espera_personalizada(inicio_random=1,fim_random=3)
-            driver.find_element(By.CSS_SELECTOR, path.Login.campo_user).send_keys(user.usuario)
-            espera_personalizada(inicio_random=1,fim_random=3)
-            driver.find_element(By.CSS_SELECTOR, path.Login.campo_password).send_keys(user.senha)
-            espera_personalizada(inicio_random=1,fim_random=3)
+            usuarios = get_all_users(lojas)
+        except Exception as e:
+            return False, f'Erro ao buscar os usuários.\nDescrição: {str(e)}'
 
-            submit = wdw.until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_entrar))
-            )
-            submit.click()
-            
-            prosseguir = wdw.until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_prosseguir))
-            )
-
-            sleep(2)
-
-            prosseguir.click()
-
-            # ===============================
-            #       NAVEGAÇÃO NO MENU
-            # ===============================
-            espera_personalizada()
-
+        for user in usuarios:
+            if should_stop(session_id):
+                print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                break
+            driver.get(path.Url.url)
             try:
-                btn_mensagem = WebDriverWait(driver, timeout=15).until(
-                    EC.visibility_of_element_located((By.CSS_SELECTOR, path.MenuPrincipal.btn_mensagem))
+                # ===============================
+                #             LOGIN
+                # ===============================
+                espera_personalizada(inicio_random=1,fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, path.Login.campo_code).send_keys(user.codigo)
+                espera_personalizada(inicio_random=1,fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, path.Login.campo_user).send_keys(user.usuario)
+                espera_personalizada(inicio_random=1,fim_random=3)
+                driver.find_element(By.CSS_SELECTOR, path.Login.campo_password).send_keys(user.senha)
+                espera_personalizada(inicio_random=1,fim_random=3)
+
+                submit = wdw.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_entrar))
+                )
+                submit.click()
+                
+                prosseguir = wdw.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, path.Login.btn_prosseguir))
                 )
 
-                btn_mensagem.click()
-            except:
-                pass
-            
-            clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio, 'consórcio')  # Consórcio
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'formulários e download')
+                sleep(2)
 
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - formulários/download')
+                prosseguir.click()
 
-            espera_personalizada(inicio_random=1, fim_random=3)
-            clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'solicitação carga de arquivos')
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-            # ===============================
-            #        ACESSO AO IFRAME
-            # ===============================
-            espera_personalizada(
-                lambda: driver.switch_to.default_content(),
-                lambda: driver.switch_to.frame(0),
-                inicio_random=2,
-                fim_random=4
-            )
+                # ===============================
+                #       NAVEGAÇÃO NO MENU
+                # ===============================
+                espera_personalizada()
 
-            check_box = WebDriverWait(driver, timeout=15).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, path.Frame.checkbox_ccc))
-            )
+                try:
+                    btn_mensagem = WebDriverWait(driver, timeout=15).until(
+                        EC.visibility_of_element_located((By.CSS_SELECTOR, path.MenuPrincipal.btn_mensagem))
+                    )
 
-            check_box.click()
+                    btn_mensagem.click()
+                except:
+                    pass
+                
+                clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio, 'consórcio')  # Consórcio
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, path.MenuPrincipal.aba_formularios_download, 'formulários e download')
 
-            clicar_pelo_atributo(driver, 'value', 'solicitar carga', path.Frame.btn_solicitar_carga)
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, path.MenuPrincipal.aba_consorcio_side_menu, 'consórcio - formulários/download')
 
-            # ===============================
-            #        ACESSO AO ALERT
-            # ===============================
-            alert = espera_personalizada(
-                lambda: driver.switch_to.alert,
-                retorno=True
-            )
-            alert.accept()
+                espera_personalizada(inicio_random=1, fim_random=3)
+                clica_na_aba(wdw, path.MenuPrincipal.aba_solicitacao_carga, 'solicitação carga de arquivos')
 
-            # ===============================
-            #      VOLTA PARA O IFRAME
-            # ===============================
-            espera_personalizada(
-                lambda: driver.switch_to.default_content(),
-                lambda: driver.switch_to.frame(0),
-                inicio_random=2,
-                fim_random=4
-            )
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-            # ===============================
-            #   ADICIONANDO A DATA DE HOJE
-            # ===============================
-            hoje = datetime.now().strftime("%d/%m/%y")
+                # ===============================
+                #        ACESSO AO IFRAME
+                # ===============================
+                espera_personalizada(
+                    lambda: driver.switch_to.default_content(),
+                    lambda: driver.switch_to.frame(0),
+                    inicio_random=2,
+                    fim_random=4
+                )
 
-            sleep(random.randint(2, 4))
+                check_box = WebDriverWait(driver, timeout=15).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, path.Frame.checkbox_ccc))
+                )
 
-            preencher_campo(driver, path.Frame.entry_a, hoje)
-            preencher_campo(driver, path.Frame.entry_de, hoje)
+                check_box.click()
 
-            sleep(random.randint(2, 4))
-            clicar_pelo_atributo(driver, 'value', 'confirmar', path.Frame.btn_confirmar)
+                clicar_pelo_atributo(driver, 'value', 'solicitar carga', path.Frame.btn_solicitar_carga)
 
-            # ===============================
-            #        ACESSO AO ALERT
-            # ===============================
-            alert = espera_personalizada(
-                lambda: driver.switch_to.alert,
-                retorno=True
-            )
-            alert.accept()
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-            sleep(random.randint(2, 4))
-            # ===============================
-            #          SAIR DA LOJA
-            # ===============================
-            sair_ihs(driver, path.Logout.btn_sair)
+                # ===============================
+                #        ACESSO AO ALERT
+                # ===============================
+                alert = espera_personalizada(
+                    lambda: driver.switch_to.alert,
+                    retorno=True
+                )
+                alert.accept()
 
-            logging.error(msg=f'✅ Solicitação efetuada na loja: {user.nome_loja}.\n{'-'*60}\n')
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
 
-        except Exception as e:
-            logging.error(msg=f'❌ Erro ao solicitar a carga da loja {user.nome_loja}.\nDescrição: {str(e)}.\n{'-'*60}\n')
-            driver.get(path.Url.url)
-            continue
-    
+                # ===============================
+                #      VOLTA PARA O IFRAME
+                # ===============================
+                espera_personalizada(
+                    lambda: driver.switch_to.default_content(),
+                    lambda: driver.switch_to.frame(0),
+                    inicio_random=2,
+                    fim_random=4
+                )
+
+                # ===============================
+                #   ADICIONANDO A DATA DE HOJE
+                # ===============================
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+                hoje = datetime.now().strftime("%d/%m/%y")
+
+                sleep(random.randint(2, 4))
+
+                preencher_campo(driver, path.Frame.entry_a, hoje)
+                preencher_campo(driver, path.Frame.entry_de, hoje)
+
+                sleep(random.randint(2, 4))
+                clicar_pelo_atributo(driver, 'value', 'confirmar', path.Frame.btn_confirmar)
+
+                if should_stop(session_id):
+                    print(f"[{session_id}] Stop solicitado. Encerrando automação sem fechar o driver.")
+                    break
+
+                # ===============================
+                #        ACESSO AO ALERT
+                # ===============================
+                alert = espera_personalizada(
+                    lambda: driver.switch_to.alert,
+                    retorno=True
+                )
+                alert.accept()
+
+                sleep(random.randint(2, 4))
+                # ===============================
+                #          SAIR DA LOJA
+                # ===============================
+                sair_ihs(driver, path.Logout.btn_sair)
+
+                logging.error(msg=f'✅ Solicitação efetuada na loja: {user.nome_loja}.\n{'-'*60}\n')
+
+            except Exception as e:
+                logging.error(msg=f'❌ Erro ao solicitar a carga da loja {user.nome_loja}.\nDescrição: {str(e)}.\n{'-'*60}\n')
+                driver.get(path.Url.url)
+                continue
+    finally:
+        finish_state(session_id)
+
     return True, 'Solicitação de Carga realizada, confira os arquivos, para saber se ele criou tudo corretamente.'
