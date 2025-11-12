@@ -40,7 +40,7 @@ class Login(Resource):
         ok_attr, attrs, _ = buscar_atributos(usuario, senha)
         print(attrs)
         print(ok_attr)
-        claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail"),"department": attrs.get("department"),"description": attrs.get("description") } if ok_attr and attrs else {}
+        claims = {"cn": attrs.get("cn"), "mail": attrs.get("mail"),"department": attrs.get("department"),"description": attrs.get("description"),"samaccountname":attrs.get("samaccountname") } if ok_attr and attrs else {}
 
         identity =  usuario 
 
@@ -50,5 +50,6 @@ class Login(Resource):
             "ok": True,
             "message": "Autenticado com sucesso",
             "user": access_token,
-            "claims": claims
+            "claims": claims,
+            "username":identity
         }, 200
