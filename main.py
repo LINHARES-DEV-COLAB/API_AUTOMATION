@@ -1,3 +1,4 @@
+from ast import Import
 from concurrent.futures import thread
 from datetime import timedelta
 import os
@@ -14,6 +15,9 @@ from APP.Controllers.baixa_arquivos_cnh_controller import baixa_arquivos_cnh_hon
 from APP.Controllers.preparacao_baixas_controller import preparacao_baixas_ns
 from APP.Controllers.abrir_driver_controller import abrir_driver_ns
 from APP.Controllers.automation_controller import auto_ns
+from APP.Controllers.aymore_controller import aymore_ns
+from APP.Controllers.fidc_controller import fidc_ns
+from APP.Controllers.pan_controller import  pan_ns
 from APP.Config.supa_config import init_db, db
 from sqlalchemy import text
 import logging
@@ -66,8 +70,7 @@ def create_app(test_config=None):
 
     EXEC = ExecutionStore()
 
-    # (opcional) lock por automação para evitar concorrência da mesma automação
-    _AUTO_LOCKS = {}  # automation_id -> threading.Lock()
+    _AUTO_LOCKS = {} 
     def _get_auto_lock(automation_id):
         _AUTO_LOCKS.setdefault(automation_id, threading.Lock())
         return _AUTO_LOCKS[automation_id]
@@ -76,7 +79,7 @@ def create_app(test_config=None):
         EXEC.set(exec_id, status="running", started_at=time.time())
         EXEC.append_log(exec_id, f"Automation: {automation_id}")
         try:
-            # Se NÃO puder concorrer a mesma automação, use lock:
+
             with _get_auto_lock(automation_id):
                 result = controller_callable(automation_id, params, file_path_or_none)
 
@@ -93,13 +96,10 @@ def create_app(test_config=None):
                     pass
 
     init_db(app)
-    # Configurações básicas
     app.config.from_mapping(
-        # JWT Config
         JWT_SECRET_KEY=os.getenv("JWT_SECRET_KEY", ""),
         JWT_ACCESS_TOKEN_EXPIRES=timedelta(minutes=int(os.getenv("JWT_EXPIRE_MIN", "30"))),
         
-        # Database Config
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SQLALCHEMY_ECHO=True,
         
@@ -141,9 +141,6 @@ def _initialize_extensions(app):
     # JWT
     jwt = JWTManager(app)
     
-        
-
-
 def _configure_api(app):
     authorizations = {
         "Bearer Auth": {
@@ -163,13 +160,16 @@ def _configure_api(app):
 
 def _register_namespaces(api):
     """Registrar todos os namespaces do Flask-RESTX"""
-    api.add_namespace(auto_ns, path="/automation")
+    api.add_namespace(auto_ns, path="/toFront")
     api.add_namespace(auth_ns, path="/auth")
     api.add_namespace(solicitacao_carga_ns, path="/solicitacao-carga")
     api.add_namespace(conciliacao_cdc_honda_ns, path="/conciliacao-cdc-honda")
     api.add_namespace(baixa_arquivos_cnh_honda_ns, path="/baixa-arquivos-cnh-honda")
     api.add_namespace(preparacao_baixas_ns, path="/preparacao-baixas")
     api.add_namespace(abrir_driver_ns, path="/abrir-driver")
+    api.add_namespace(aymore_ns, path="/aymore")
+    api.add_namespace(fidc_ns, path="/fidc")
+    api.add_namespace(pan_ns, path="/pan")
 
 def _configure_cors(app):
     CORS(

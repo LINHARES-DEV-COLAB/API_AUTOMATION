@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from flask_restx import Namespace, Resource, reqparse
-from APP.Services.pan_service import PanAutomation
+from APP.Services.fidc_service import FIDCAutomation
 from APP.common.protected_resource import ProtectedResource
 import logging
 import traceback
@@ -11,23 +11,23 @@ import os
 # Configurar logger
 logger = logging.getLogger(__name__)
 
-# Parser para base64 e data opcional
-pan_parser = reqparse.RequestParser()
-pan_parser.add_argument(
+# Parser para base64 e lojas opcional
+fidc_parser = reqparse.RequestParser()
+fidc_parser.add_argument(
     'arquivo_base64',
     type=str,
     location='json',
     required=True,
     help='Arquivo Excel em base64 (obrigatório)'
 )
-pan_parser.add_argument(
-    'data',
+fidc_parser.add_argument(
+    'lojas',
     type=str,
     location='json',
     required=False,
-    help='Data específica para busca no formato DD-MM-AAAA (opcional)'
+    help='Lista de lojas separadas por vírgula (opcional)'
 )
-pan_parser.add_argument(
+fidc_parser.add_argument(
     'nome_arquivo',
     type=str,
     location='json',
@@ -35,25 +35,25 @@ pan_parser.add_argument(
     help='Nome do arquivo original (opcional)'
 )
 
-pan_ns = Namespace('pan', description='Automação PAN - Processamento de extratos bancários')
+fidc_ns = Namespace('fidc', description='Automação FIDC - Processamento de notas fiscais')
 
-@pan_ns.route("/processar")
-class PANProcessar(ProtectedResource):
-    @pan_ns.expect(pan_parser)
+@fidc_ns.route("/processar")
+class FIDCProcessar(ProtectedResource):
+    @fidc_ns.expect(fidc_parser)
     def post(self):
         """
-        Processa arquivo Excel em base64 para automação PAN
+        Processa arquivo Excel em base64 para automação FIDC
         """
         temp_file_path = None
         
         try:
             # Parse dos argumentos
-            args = pan_parser.parse_args()
+            args = fidc_parser.parse_args()
             arquivo_base64 = args['arquivo_base64']
-            data_param = args['data']
+            lojas_param = args['lojas']
             nome_arquivo = args.get('nome_arquivo', 'arquivo.xlsx')
             
-            logger.info("📥 Iniciando processamento PAN com base64")
+            logger.info("📥 Iniciando processamento FIDC com base64")
             
             # Validar base64
             if not arquivo_base64:
@@ -79,8 +79,8 @@ class PANProcessar(ProtectedResource):
                     }, 400
             
             logger.info(f"📁 Processando arquivo: {nome_arquivo}")
-            if data_param:
-                logger.info(f"📅 Data especificada: {data_param}")
+            if lojas_param:
+                logger.info(f"🏪 Lojas especificadas: {lojas_param}")
             
             # Decodificar base64 e salvar como arquivo temporário
             try:
@@ -106,15 +106,17 @@ class PANProcessar(ProtectedResource):
                 'arquivo_excel': temp_file_path
             }
             
-            # Adicionar data se especificada
-            if data_param:
-                parameters['data'] = data_param
+            # Adicionar lojas se especificadas
+            if lojas_param:
+                lojas_lista = [loja.strip() for loja in lojas_param.split(',')]
+                parameters['lojas'] = lojas_lista
+                logger.info(f"🏪 Lojas processadas: {lojas_lista}")
             
             # Executar automação
-            pan_service = PanAutomation()
+            fidc_service = FIDCAutomation()
             
             # Validar parâmetros
-            if not pan_service.validate_parameters(parameters):
+            if not fidc_service.validate_parameters(parameters):
                 # Limpar arquivo temporário
                 if temp_file_path and os.path.exists(temp_file_path):
                     os.unlink(temp_file_path)
@@ -124,39 +126,36 @@ class PANProcessar(ProtectedResource):
                     "erro": "Parâmetro arquivo_excel é obrigatório"
                 }, 400
             
-            logger.info("🚀 Executando automação PAN...")
-            resultado = pan_service.execute(parameters)
+            logger.info("🚀 Executando automação FIDC...")
+            resultado = fidc_service.execute(parameters)
             
             # Limpar arquivo temporário
             if temp_file_path and os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
                 logger.info("🧹 Arquivo temporário removido")
             
-            # Verificar se houve erro na execução
-            if resultado.get('status') == 'error':
-                return {
-                    "ok": False,
-                    "erro": f"Falha na automação PAN: {resultado.get('erro', 'Erro desconhecido')}"
-                }, 500
-            
             # Formatar resposta de sucesso
             response_data = {
                 "ok": True,
-                "mensagem": resultado.get('mensagem', 'Automação PAN executada com sucesso'),
+                "mensagem": "Automação FIDC executada com sucesso",
                 "resultado": resultado,
                 "detalhes": {
                     "arquivo_processado": nome_arquivo,
-                    "total_processado": resultado.get('total_processado', 0),
-                    "resultados_encontrados": len(resultado.get('resultados', [])),
-                    "status": resultado.get('status', 'completed')
+                    "total_empresas": resultado.get('total_empresas', 0),
+                    "empresas_com_sucesso": resultado.get('empresas_com_sucesso', 0),
+                    "status_geral": resultado.get('status', 'unknown'),
+                    "total_nfs_excel": resultado.get('total_nfs_excel', 0),
+                    "total_nfs_processadas": resultado.get('total_nfs_processadas', 0),
+                    "total_boletos_gerados": resultado.get('total_boletos_gerados', 0),
+                    "eficiencia_geral": resultado.get('eficiencia_geral', 0)
                 }
             }
             
-            logger.info(f"✅ Automação PAN concluída: {resultado.get('total_processado', 0)} registros processados")
+            logger.info("✅ Automação FIDC concluída com sucesso")
             return jsonify(response_data), 200
             
         except Exception as e:
-            logger.error(f"❌ Erro no processamento PAN: {str(e)}")
+            logger.error(f"❌ Erro no processamento FIDC: {str(e)}")
             logger.error(traceback.format_exc())
             
             # Limpar arquivo temporário em caso de erro
@@ -169,18 +168,18 @@ class PANProcessar(ProtectedResource):
             
             return {
                 "ok": False,
-                "erro": f"Falha na automação PAN: {str(e)}"
+                "erro": f"Falha na automação FIDC: {str(e)}"
             }, 500
 
-@pan_ns.route("/status")
-class PANStatus(Resource):
+@fidc_ns.route("/status")
+class FIDCStatus(Resource):
     def get(self):
         """
-        Retorna status do serviço PAN
+        Retorna status do serviço FIDC
         """
         return {
             "ok": True,
-            "servico": "PAN Automation",
+            "servico": "FIDC Automation",
             "status": "operacional",
-            "descricao": "Serviço de automação PAN para processamento de extratos bancários"
+            "descricao": "Serviço de automação FIDC para processamento de notas fiscais"
         }, 200

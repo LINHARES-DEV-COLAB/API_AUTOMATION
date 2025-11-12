@@ -13,12 +13,15 @@ from APP.Models.automation_model import Automation
 from APP.Models.run_model import Run  
 from flask_restx import reqparse
 from werkzeug.datastructures import FileStorage
-from APP.Services.execution_service import ExecutionService
-from APP.Models.executions_model import Execution  # Ou onde está seu model
+from APP.Models.execution_status_log_model import ExecutionStatusLog
+from APP.Models.automation_model import Automation
+from sqlalchemy import desc
+from APP.Models.executions_model import Execution  # Importação adicionada
 
 
 
-auto_ns = Namespace("automation", description="Catálogo de setores, automações e execuções")
+
+auto_ns = Namespace("toFront", description="Catálogo de setores, automações e execuções", ordered=True)
 
 # ==== MODELS RESTX (apenas campos que você realmente expõe) ====
 sector_model = auto_ns.model("Sector", {
@@ -157,6 +160,7 @@ class Departments(ProtectedResource):  # use ProtectedResource se quiser JWT aqu
 
 # ===== /automation/automations/<department_id> =====
 @auto_ns.route("/automations/<string:department_id>")
+
 class Automations(ProtectedResource):  # use ProtectedResource se exigir JWT
     @auto_ns.marshal_with(automation_list_response, code=HTTPStatus.OK, envelope=None)
     def get(self, department_id: str):
@@ -198,160 +202,6 @@ class Automations(ProtectedResource):  # use ProtectedResource se exigir JWT
             auto_ns.abort(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal Server Error")
 
 
-@auto_ns.route("/automations/<string:automation_id>/run")
-class RunAutomation(ProtectedResource):
-    @auto_ns.expect(upload_parser)
-    @auto_ns.marshal_with(run_model, code=HTTPStatus.ACCEPTED, envelope=None)
-    def post(self, automation_id: str):
-        execution_id = None
-        temp_file_path = None
-
-        try:
-            parameters = {}
-            
-            # 1. BUSCAR AUTOMAÇÃO NO BANCO
-            automation = Automation.query.get(automation_id)
-            if not automation:
-                return {"error": "Automação não encontrada"}, 404
-            
-            print(f"🔍 Automação: {automation_id}")
-            print(f"📝 Script Path: {automation.script_path}")
-            print(f"⚡ Tipo Execução: {automation.type}")
-            
-            # 2. PROCESSAR PARÂMETROS (CÓDIGO NOVO - 100% SEGURO)
-            if request.content_type and 'multipart/form-data' in request.content_type:
-                args = upload_parser.parse_args()
-                
-                # Processa arquivo
-                arquivo_excel = args['arquivo_excel']
-                if arquivo_excel:
-                    import tempfile
-                    import os
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
-                        arquivo_excel.save(temp_file.name)
-                        parameters["arquivo_excel"] = temp_file.name
-                        temp_file_path = temp_file.name
-                        print(f"✅ Arquivo salvo: {temp_file.name}")
-                
-                string_params = []
-
-                for param in string_params:
-                    value = args.get(param)
-                    if value is not None:
-                        parameters[param] = value
-                        print(f"✅ Parâmetro {param}: {value}")
-                
-                print(f"✅ Todos os parâmetros: {parameters}")
-                # PROCESSAMENTO DE LOJAS - CÓDIGO NOVO E SEGURO
-                lojas_input = args.get('lojas')
-                print(f"🔍 Lojas input raw: {lojas_input} (tipo: {type(lojas_input)})")
-                
-                # Garantia absoluta de que lojas será uma lista
-                lojas = []
-                if lojas_input is not None:
-                    if isinstance(lojas_input, str) and lojas_input.strip():
-                        # Se for string não vazia, separa por vírgula
-                        lojas = [loja.strip() for loja in lojas_input.split(',') if loja.strip()]
-                    elif isinstance(lojas_input, list):
-                        # Se for lista, filtra itens válidos
-                        lojas = []
-                        for item in lojas_input:
-                            if item is not None:
-                                item_str = str(item).strip()
-                                if item_str:
-                                    lojas.append(item_str)
-                
-                parameters["lojas"] = lojas
-                print(f"✅ Lojas processadas: {lojas}")
-                
-                # Processa data (para PAN)
-                data_param = args.get('data')
-                if data_param:
-                    parameters["data"] = data_param
-                    print(f"✅ Data: {data_param}")
-            
-            # 3. CRIAR EXECUÇÃO
-            execution_id = ExecutionService.create_execution(
-                automation_id=automation_id,
-                triggered_by=getattr(request, 'user_id', 'system')
-            )
-            print(f"📝 Execução criada: {execution_id}")
-            
-            # 4. FACTORY - CÓDIGO SIMPLIFICADO
-            print(f"🎯 Identificando automação para: {automation.script_path}")
-            
-            command = None
-            script_lower = (automation.script_path or "").lower()
-            
-            if 'pan' in script_lower or 'pan' in automation_id.lower():
-                print("🚀 Criando PanService...")
-                from APP.Services.pan_service import PanService
-                command = PanService()
-            elif 'fidc' in script_lower or 'fidc' in automation_id.lower():
-                print("🚀 Criando FIDCAutomation...")
-                from APP.Services.fidc_service import FIDCAutomation
-                command = FIDCAutomation()
-            else:
-                print(f"❌ Tipo não identificado: {automation.script_path}")
-            
-            if not command:
-                error_msg = f"Tipo de automação não suportado: {automation.script_path}"
-                print(f"❌ {error_msg}")
-                ExecutionService.fail_execution(execution_id, error_msg)
-                return {"error": error_msg}, 404
-            
-            print(f"✅ Command criado: {type(command).__name__}")
-            
-            # 5. VALIDAR E EXECUTAR
-            print("🔍 Validando parâmetros...")
-            if not command.validate_parameters(parameters):
-                error_msg = "Parâmetros inválidos para esta automação"
-                print(f"❌ {error_msg}")
-                ExecutionService.fail_execution(execution_id, error_msg)
-                return {"error": error_msg}, 400
-            
-            print("🚀 Executando automação...")
-            resultado = command.execute(parameters)
-            print(f"✅ Automação concluída. Resultado: {resultado}")
-            
-            ExecutionService.complete_execution(execution_id, resultado)
-            
-            # Limpeza
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                    print("✅ Arquivo temporário removido")
-                except Exception as e:
-                    print(f"⚠️ Erro ao remover arquivo: {e}")
-            
-            # Retorno
-            execution = Execution.query.get(execution_id)
-            return {
-                "runId": execution_id,
-                "automationId": automation_id,
-                "status": execution.status,
-                "startedAt": execution.start_time.isoformat() if execution.start_time else None,
-                "finishedAt": execution.end_time.isoformat() if execution.end_time else None,
-                "output": resultado,
-            }, HTTPStatus.ACCEPTED
-            
-        except Exception as e:
-            print(f"❌ EXCEPTION: {e}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
-            
-            if execution_id:
-                ExecutionService.fail_execution(execution_id, str(e))
-            
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                    print("✅ Arquivo temporário removido após erro")
-                except:
-                    pass
-            
-            db.session.rollback()
-            return {"error": str(e)}, 500
         
 # ===== /automation/ (ping) =====
 automation_model = auto_ns.model("Automation", {
@@ -372,25 +222,32 @@ class AutomationRoot(ProtectedResource):
         current_app.logger.info("[AUTOMATIONS] Amostra IDs: %s", [d["id"] for d in data])
         return data, HTTPStatus.OK
 
-@auto_ns.route("/status/<string:department_id>/<string:automation_id>")
+@auto_ns.route("/status/<string:department_id>/<string:automation_id>/<string:user_id>")
 class AutomationStatus(ProtectedResource):
-    def get(self, department_id: str, automation_id: str):
+    def get(self, department_id: str, automation_id: str, user_id: str):
         try:
             print(f"🔍 Buscando status: department={department_id}, automation={automation_id}")
             
             # Busca a ÚLTIMA execução específica (apenas 1)
-            last_execution = db.session.query(Execution).filter(
-                Execution.automation_id == automation_id
-            ).order_by(Execution.start_time.desc()).first()
+ 
+            results = (
+                db.session.query(ExecutionStatusLog, Execution)
+                .join(Execution, ExecutionStatusLog.execution_id == Execution.id)
+                .filter(ExecutionStatusLog.changed_by == user_id)
+                .order_by(desc(ExecutionStatusLog.changed_at))
+                .limit(5)
+                .all()
+            )
+    
             
-            if last_execution:
-                print(f"✅ Última execução encontrada: {last_execution.status}")
+            if results:
+                print(f"✅ Última execução encontrada: {results.status}")
                 
                 return {
                     "department_id": department_id,
                     "automation_id": automation_id,
-                    "automation_name": last_execution.automation.name if last_execution.automation else "N/A",
-                    "status": last_execution.status,
+                    "automation_name": results.automation.name if results.automation else "N/A",
+                    "status": results.status,
  
                 }, HTTPStatus.OK
             else:
