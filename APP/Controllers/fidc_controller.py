@@ -1,12 +1,14 @@
-from flask import request, jsonify
+from flask import make_response, request, jsonify
 from flask_restx import Namespace, Resource, reqparse
 from APP.Services.fidc_service import FIDCAutomation
 from APP.common.protected_resource import ProtectedResource
+from APP.Config.ihs_config import is_running
 import logging
 import traceback
 import base64
 import tempfile
 import os
+from threading import Thread
 
 # Configurar logger
 logger = logging.getLogger(__name__)
@@ -41,13 +43,13 @@ fidc_ns = Namespace('fidc', description='Automação FIDC - Processamento de not
 class FIDCProcessar(ProtectedResource):
     @fidc_ns.expect(fidc_parser)
     def post(self):
-        """
-        Processa arquivo Excel em base64 para automação FIDC
-        """
+
         temp_file_path = None
-        
+        session_id = f'FIDC - envio de boletos'
+        if is_running(session_id):
+            return make_response(jsonify({"ok":False, "erro":"already_running"}), 400)
+
         try:
-            # Parse dos argumentos
             args = fidc_parser.parse_args()
             arquivo_base64 = args['arquivo_base64']
             lojas_param = args['lojas']
@@ -112,8 +114,8 @@ class FIDCProcessar(ProtectedResource):
                 parameters['lojas'] = lojas_lista
                 logger.info(f"🏪 Lojas processadas: {lojas_lista}")
             
-            # Executar automação
-            fidc_service = FIDCAutomation()
+            
+            fidc_service = Thread(targed=FIDCAutomation(), args=(session_id, lojas_lista), daemon=True)
             
             # Validar parâmetros
             if not fidc_service.validate_parameters(parameters):

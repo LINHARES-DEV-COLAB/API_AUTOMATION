@@ -1,7 +1,7 @@
 from flask import request, jsonify
 from flask_restx import Namespace, Resource, reqparse
 from werkzeug.datastructures import FileStorage
-from APP.Services.pan_service import PanAutomation
+from APP.Services.pan_service import PanService
 from APP.common.protected_resource import ProtectedResource
 import logging
 import traceback
@@ -78,10 +78,10 @@ class PANProcessar(ProtectedResource):
                 parameters['data'] = data_param
             
             # Executar automação
-            pan_service = PanAutomation()
+            pan_service = PanService()
             
             logger.info("🚀 Executando automação PAN...")
-            resultado = pan_service.execute(parameters)
+            resultado = pan_service.processar_extrato(parameters)
             
             # Limpar arquivo temporário
             if os.path.exists(temp_file_path):
