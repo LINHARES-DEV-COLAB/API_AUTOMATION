@@ -1,8 +1,11 @@
 from APP.Config.ihs_config import _ensure_driver
 from tkinter import messagebox
+from datetime import datetime
 
 def abrir_driver_main():
-    driver, wdw, PASTA_DOWNLOAD = _ensure_driver()
+    hoje = datetime.now().strftime('%d-%m-%Y')
+    session_id = f'Abrindo o driver - {hoje}'
+    driver, wdw, PASTA_DOWNLOAD = _ensure_driver(session_id)
     
     resposta = True
     while resposta:
