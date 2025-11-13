@@ -13,7 +13,7 @@ from threading import Thread
 # Configurar logger
 logger = logging.getLogger(__name__)
 
-# Parser para base64 e lojas opcional
+# Parser para base64 (removido lojas)
 fidc_parser = reqparse.RequestParser()
 fidc_parser.add_argument(
     'arquivo_base64',
@@ -22,41 +22,52 @@ fidc_parser.add_argument(
     required=True,
     help='Arquivo Excel em base64 (obrigatório)'
 )
-fidc_parser.add_argument(
-    'lojas',
-    type=str,
-    location='json',
-    required=False,
-    help='Lista de lojas separadas por vírgula (opcional)'
-)
-fidc_parser.add_argument(
-    'nome_arquivo',
-    type=str,
-    location='json',
-    required=False,
-    help='Nome do arquivo original (opcional)'
-)
 
 fidc_ns = Namespace('fidc', description='Automação FIDC - Processamento de notas fiscais')
+
+def executar_fidc_em_background(session_id, parameters):
+    try:
+        logger.info("🚀 Iniciando processamento FIDC em background...")
+        fidc_service = FIDCAutomation()
+        resultado = fidc_service.execute(parameters)
+        
+        # Limpar arquivo temporário
+        if 'arquivo_excel' in parameters and os.path.exists(parameters['arquivo_excel']):
+            os.unlink(parameters['arquivo_excel'])
+            logger.info("🧹 Arquivo temporário removido")
+            
+        logger.info("✅ Processamento FIDC em background concluído")
+        return resultado
+        
+    except Exception as e:
+        logger.error(f"❌ Erro no processamento FIDC em background: {str(e)}")
+        # Limpar arquivo temporário em caso de erro
+        try:
+            if 'arquivo_excel' in parameters and os.path.exists(parameters['arquivo_excel']):
+                os.unlink(parameters['arquivo_excel'])
+        except:
+            pass
+        return {
+            "status": "error",
+            "erro": str(e)
+        }
 
 @fidc_ns.route("/processar")
 class FIDCProcessar(ProtectedResource):
     @fidc_ns.expect(fidc_parser)
     def post(self):
-
         temp_file_path = None
-        session_id = f'FIDC - envio de boletos'
+        session_id = 'FIDC - envio de boletos'
+        
         if is_running(session_id):
             return make_response(jsonify({"ok":False, "erro":"already_running"}), 400)
 
         try:
             args = fidc_parser.parse_args()
             arquivo_base64 = args['arquivo_base64']
-            lojas_param = args['lojas']
-            nome_arquivo = args.get('nome_arquivo', 'arquivo.xlsx')
             
-            logger.info("📥 Iniciando processamento FIDC com base64")
-            
+            logger.info("📥 Iniciando processamento FIDC com base64 - TODAS AS EMPRESAS")
+
             # Validar base64
             if not arquivo_base64:
                 return {
@@ -80,10 +91,6 @@ class FIDCProcessar(ProtectedResource):
                         "erro": "Formato data URL inválido"
                     }, 400
             
-            logger.info(f"📁 Processando arquivo: {nome_arquivo}")
-            if lojas_param:
-                logger.info(f"🏪 Lojas especificadas: {lojas_param}")
-            
             # Decodificar base64 e salvar como arquivo temporário
             try:
                 # Decodificar base64
@@ -103,58 +110,35 @@ class FIDCProcessar(ProtectedResource):
                     "erro": f"Base64 inválido: {str(e)}"
                 }, 400
             
-            # Preparar parâmetros para a service
+            # Preparar parâmetros para a service (SEM lojas - processa todas automaticamente)
             parameters = {
                 'arquivo_excel': temp_file_path
             }
             
-            # Adicionar lojas se especificadas
-            if lojas_param:
-                lojas_lista = [loja.strip() for loja in lojas_param.split(',')]
-                parameters['lojas'] = lojas_lista
-                logger.info(f"🏪 Lojas processadas: {lojas_lista}")
+            logger.info("🏪 Processando TODAS as empresas encontradas no arquivo Excel")
             
+            # Iniciar processamento em background
+            thread = Thread(
+                target=executar_fidc_em_background,
+                args=(session_id, parameters),
+                daemon=True
+            )
+            thread.start()
             
-            fidc_service = Thread(targed=FIDCAutomation(), args=(session_id, lojas_lista), daemon=True)
-            
-            # Validar parâmetros
-            if not fidc_service.validate_parameters(parameters):
-                # Limpar arquivo temporário
-                if temp_file_path and os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-                
-                return {
-                    "ok": False,
-                    "erro": "Parâmetro arquivo_excel é obrigatório"
-                }, 400
-            
-            logger.info("🚀 Executando automação FIDC...")
-            resultado = fidc_service.execute(parameters)
-            
-            # Limpar arquivo temporário
-            if temp_file_path and os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-                logger.info("🧹 Arquivo temporário removido")
-            
-            # Formatar resposta de sucesso
+            # Retornar resposta imediata
             response_data = {
                 "ok": True,
-                "mensagem": "Automação FIDC executada com sucesso",
-                "resultado": resultado,
+                "mensagem": "Processamento FIDC iniciado em background - TODAS as empresas serão processadas",
+                "session_id": session_id,
                 "detalhes": {
-                    "arquivo_processado": nome_arquivo,
-                    "total_empresas": resultado.get('total_empresas', 0),
-                    "empresas_com_sucesso": resultado.get('empresas_com_sucesso', 0),
-                    "status_geral": resultado.get('status', 'unknown'),
-                    "total_nfs_excel": resultado.get('total_nfs_excel', 0),
-                    "total_nfs_processadas": resultado.get('total_nfs_processadas', 0),
-                    "total_boletos_gerados": resultado.get('total_boletos_gerados', 0),
-                    "eficiencia_geral": resultado.get('eficiencia_geral', 0)
+                    "modo": "processamento_automatico",
+                    "empresas": "todas_as_encontradas_no_excel",
+                    "status": "iniciado"
                 }
             }
             
-            logger.info("✅ Automação FIDC concluída com sucesso")
-            return jsonify(response_data), 200
+            logger.info("🚀 Processamento FIDC iniciado em background para TODAS as empresas")
+            return jsonify(response_data), 202  # 202 Accepted para processos assíncronos
             
         except Exception as e:
             logger.error(f"❌ Erro no processamento FIDC: {str(e)}")
@@ -172,16 +156,3 @@ class FIDCProcessar(ProtectedResource):
                 "ok": False,
                 "erro": f"Falha na automação FIDC: {str(e)}"
             }, 500
-
-@fidc_ns.route("/status")
-class FIDCStatus(Resource):
-    def get(self):
-        """
-        Retorna status do serviço FIDC
-        """
-        return {
-            "ok": True,
-            "servico": "FIDC Automation",
-            "status": "operacional",
-            "descricao": "Serviço de automação FIDC para processamento de notas fiscais"
-        }, 200

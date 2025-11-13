@@ -469,6 +469,30 @@ class SeleniumIntegration:
             if not senha_field:
                 print("   - Campo de senha não encontrado")
 
+    # No arquivo SeleniumIntegration, adicione este método de configuração de download
+# No arquivo fidc_selenium_integration.py, adicione:
+
+    def configure_download(self, download_path):
+        """Configura o Chrome para download automático"""
+        if hasattr(self, 'driver') and 'chrome' in self.driver.name.lower():
+            try:
+                # Configura as preferências para download automático
+                self.driver.command_executor._commands["send_command"] = (
+                    "POST", '/session/$sessionId/chromium/send_command'
+                )
+                
+                params = {
+                    'cmd': 'Page.setDownloadBehavior',
+                    'params': {
+                        'behavior': 'allow',
+                        'downloadPath': download_path
+                    }
+                }
+                self.driver.execute("send_command", params)
+                self.logger.info(f"📁 Download configurado para: {download_path}")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Não foi possível configurar download: {e}")   
+
     ##################################################################################################################    
 
     def clica_no_modulo_fidc(self, locators: Optional[Locator] = None, text_hint: Optional[str] = "FIDC") -> None:
