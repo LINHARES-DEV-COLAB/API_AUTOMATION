@@ -26,9 +26,6 @@ fidc_parser.add_argument(
 fidc_ns = Namespace('fidc', description='Automação FIDC - Processamento de notas fiscais')
 
 def executar_fidc_em_background(session_id, parameters):
-    """
-    Executa o FIDC em background
-    """
     try:
         logger.info("🚀 Iniciando processamento FIDC em background...")
         fidc_service = FIDCAutomation()

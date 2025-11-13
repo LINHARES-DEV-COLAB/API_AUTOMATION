@@ -14,7 +14,7 @@ from APP.Controllers.conciliacao_cdc_honda_controller import conciliacao_cdc_hon
 from APP.Controllers.baixa_arquivos_cnh_controller import baixa_arquivos_cnh_honda_ns
 from APP.Controllers.preparacao_baixas_controller import preparacao_baixas_ns
 from APP.Controllers.abrir_driver_controller import abrir_driver_ns
-from APP.Controllers.automation_controller import auto_ns
+from APP.Controllers.Automation_controller import auto_ns
 from APP.Controllers.aymore_controller import aymore_ns
 from APP.Controllers.fidc_controller import fidc_ns
 from APP.Controllers.pan_controller import  pan_ns

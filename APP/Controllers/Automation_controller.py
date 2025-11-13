@@ -1,20 +1,14 @@
-from enum import auto
 from http import HTTPStatus
-from pdb import run
-from click import Parameter
 from flask import current_app, request
-from flask_restx import Namespace, Resource, fields
+from flask_restx import Namespace, fields
 from sqlalchemy.exc import SQLAlchemyError
 from APP.Config.supa_config import db
-from APP.Models import executions_model
 from APP.protected_resource import ProtectedResource
 from APP.Models.sector_model import Sector
 from APP.Models.automation_model import Automation
-from APP.Models.run_model import Run  
 from flask_restx import reqparse
 from werkzeug.datastructures import FileStorage
 from APP.Models.execution_status_log_model import ExecutionStatusLog
-from APP.Models.automation_model import Automation
 from sqlalchemy import desc
 from APP.Models.executions_model import Execution 
 
@@ -226,27 +220,29 @@ class AutomationStatus(ProtectedResource):
         try:
             print(f"🔍 Buscando status: department={department_id}, automation={automation_id}")
             
-            # Busca a ÚLTIMA execução específica (apenas 1)
- 
+            # Busca a ÚLTIMA execução específica
             results = (
                 db.session.query(ExecutionStatusLog, Execution)
                 .join(Execution, ExecutionStatusLog.execution_id == Execution.id)
-                .filter(ExecutionStatusLog.changed_by == user_id)
+                .filter(
+                    ExecutionStatusLog.changed_by == user_id,
+                    Execution.automation_id == automation_id  # ← ADICIONE ESTE FILTRO IMPORTANTE
+                )
                 .order_by(desc(ExecutionStatusLog.changed_at))
-                .limit(5)
-                .all()
+                .first()  # ← Mude para first() para pegar apenas o mais recente
             )
-    
             
             if results:
-                print(f"✅ Última execução encontrada: {results.status}")
+                status_log, execution = results  # ← Desempacota a tupla
+                print(f"✅ Última execução encontrada: {execution.status}")
                 
                 return {
                     "department_id": department_id,
                     "automation_id": automation_id,
-                    "automation_name": results.automation.name if results.automation else "N/A",
-                    "status": results.status,
- 
+                    "automation_name": execution.automation.name if hasattr(execution, 'automation') and execution.automation else "N/A",
+                    "status": execution.status,
+                    "last_updated": status_log.changed_at.isoformat() if status_log.changed_at else None,
+                    "changed_by": status_log.changed_by
                 }, HTTPStatus.OK
             else:
                 print(f"⚠️  Nenhuma execução encontrada para {automation_id}")
